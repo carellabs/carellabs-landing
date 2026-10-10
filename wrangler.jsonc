@@ -1,0 +1,18 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "carellabs-landing",
+  "compatibility_date": "2026-10-10",
+  // Solo assets estáticos (dist/ de `astro build`), sin código Worker (`main`):
+  // así Cloudflare aplica public/_headers (CSP, caché) a todas las respuestas.
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "404-page",
+    "html_handling": "auto-trailing-slash"
+  },
+  // Fase 1: la web se publica solo en su URL *.workers.dev para comprobarla en
+  // Cloudflare. El dominio carellabs.com se añade aquí (routes) en un PR aparte.
+  "workers_dev": true,
+  "preview_urls": true,
+  // Sin telemetría de wrangler, coherente con «sin rastreadores».
+  "send_metrics": false
+}

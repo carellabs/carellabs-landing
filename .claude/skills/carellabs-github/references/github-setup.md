@@ -1,6 +1,6 @@
 # Configuración de GitHub de `carellabs-landing` (capa 1)
 
-> **Revisada contra docs.github.com y developers.cloudflare.com el 9-oct-2026, pero ningún comando se ha ejecutado contra un repositorio real.**
+> **Pasos 0 a 4 ejecutados contra el repositorio real el 10-oct-2026, con todas sus comprobaciones como se esperaba (ver "Verificado en la primera ejecución", al final). Los pasos 6 y 7 (Cloudflare) siguen sin ejecutar.**
 > Los puntos que la documentación no deja cerrados (o que dependen de la interfaz) están en "No verificado", al final. Antes de ejecutar un paso, comprueba que la documentación enlazada sigue diciendo lo mismo.
 
 Se ejecuta **una sola vez**, por una persona (no por un agente), cuando:
@@ -62,7 +62,7 @@ gh label create "type:chore"           --repo "$REPO" --color CFD3D7 --descripti
 gh label create "type:breaking-change" --repo "$REPO" --color B60205 --description "Cambio incompatible (tipo con !)" --force
 ```
 
-Comprobación: `gh label list --repo "$REPO" --search "type:"` debe listar las seis.
+Comprobación: `gh label list --repo "$REPO" --limit 100 --json name --jq '.[].name' | grep '^type:'` debe listar las seis. No uses `--search "type:"`: es una búsqueda difusa y puede ocultar alguna.
 
 ### 1.3 Remoto y primer push
 
@@ -281,17 +281,23 @@ Con todo configurado, abre un PR `docs: ...` pequeño y comprueba:
 - que el botón de fusión solo ofrece *Squash and merge*, que el título propuesto es el del PR y que el mensaje son los commits de la rama;
 - que un PR `feat: ...` sin `Closes #N` falla en `pr-policy` **y aun así recibe la etiqueta `type:feature`** (es la comprobación del paso de salidas entre los jobs `pr-policy` y `label`).
 
+## Verificado en la primera ejecución (10-oct-2026)
+
+Los pasos 0 a 4 se ejecutaron contra el repositorio real y cada comprobación devolvió lo esperado:
+
+- **Pareja `PR_TITLE` + `COMMIT_MESSAGES`**: GitHub la aceptó (paso 2).
+- **Ruleset, `integration_id` 15368 y nombres de los checks**: el primer PR de Dependabot mostró `test`, `lighthouse` y `pr-policy` en verde y el estado de fusión `CLEAN`; ningún check se quedó en "Expected".
+- **Etiquetas antes del primer push**: ese mismo PR llegó con `type:chore`, y el job `label` se saltó, como está previsto para Dependabot.
+- **`security_and_analysis`**: quedan activados `secret_scanning` y `secret_scanning_push_protection`. `secret_scanning_non_provider_patterns` y `secret_scanning_validity_checks` siguen desactivados: son extras que este repositorio no usa.
+- **Actions** (`sha_pinning_required`, aprobación de forks, token de workflows en solo lectura) y **reporte privado de vulnerabilidades**: la API los aceptó y la comprobación de cada uno devolvió el valor esperado.
+- **`gh label list --search`** es una búsqueda difusa y llegó a ocultar una de las seis etiquetas: la comprobación del paso 1.2 usa ahora `--limit 100` y `grep`.
+
 ## No verificado
 
-Lo que queda de verdad pendiente. Comprueba estos puntos en la documentación o en la propia interfaz antes de darlos por buenos:
+Lo que queda de verdad pendiente:
 
-- **Nada se ha ejecutado contra un repositorio real.** Las rutas, los nombres de parámetro y los valores permitidos de los pasos 2, 3 y 4 se han contrastado con la documentación REST de GitHub; el comportamiento real lo confirma la primera ejecución (cada paso trae su comprobación).
-- **Pareja `PR_TITLE` + `COMMIT_MESSAGES`**: cada valor está documentado, y la interfaz ofrece "título del PR y detalles de los commits", pero la documentación no publica una tabla de parejas válidas. Lo cierra la comprobación del paso 2.
-- **Salida de etiqueta entre jobs cuando `pr-policy` falla**: el código del runner evalúa las `outputs` del job al terminar, falle o no un paso, y la documentación solo dice que se evalúan "al final de cada job". Que el job `label` las reciba con el job anterior en rojo se confirma con el PR `feat:` sin issue del apartado anterior. Si no llegara, el efecto sería solo que ese PR no se etiqueta.
-- **`integration_id` 15368** en los tres contextos: está documentado como campo opcional de `required_status_checks`, y el identificador sale de `gh api apps/github-actions`. Si un check se queda en "Expected" en el primer PR, revisa este punto primero.
-- **`sha_pinning_required`**: ya hay que tener todas las acciones fijadas por SHA (lo están, incluida `treosh/lighthouse-ci-action`). Si una ejecución falla por una acción "no fijada", es una acción nueva o un cambio de Dependabot que perdió el SHA.
-- **Anidado `security_and_analysis`** en el `PATCH` del repositorio: en repositorios públicos el escaneo de secretos puede venir ya activado y la protección de push puede tener otro estado por defecto.
-- **`PUT .../actions/permissions/workflow`** (sección opcional del paso 4).
-- **Ruta exacta de los menús de la interfaz**: 2FA de la organización (paso 5), instalación de la app de Cloudflare (paso 6) y *Configuration Rules* (paso 7). Las interfaces se reorganizan con frecuencia.
+- **Salida de etiqueta entre jobs cuando `pr-policy` falla**: el código del runner evalúa las `outputs` del job al terminar, falle o no un paso, y la documentación solo dice que se evalúan "al final de cada job". Que el job `label` las reciba con el job anterior en rojo se confirma con el PR `feat:` sin issue del apartado "Primer PR de prueba". Si no llegara, el efecto sería solo que ese PR no se etiqueta.
+- **`sha_pinning_required`**: todas las acciones están fijadas por SHA (incluida `treosh/lighthouse-ci-action`). Si una ejecución falla por una acción "no fijada", es una acción nueva o un cambio de Dependabot que perdió el SHA.
+- **Ruta exacta de los menús de la interfaz**: instalación de la app de Cloudflare (paso 6) y *Configuration Rules* (paso 7). Las interfaces se reorganizan con frecuencia.
 - **Cabeceras de Cloudflare Pages**: `_headers` está documentado, pero lo que llega al navegador (incluida la caché de `/_astro/*`) solo se ve con las comprobaciones del paso 7.
 - **El workflow semanal `audit.yml`**: GitHub desactiva los workflows programados de un repositorio público tras 60 días sin actividad; si deja de llegar el aviso, actívalo de nuevo desde la pestaña *Actions*.

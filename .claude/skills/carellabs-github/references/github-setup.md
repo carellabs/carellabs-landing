@@ -307,6 +307,8 @@ Los pasos 0 a 4 se ejecutaron contra el repositorio real y cada comprobación de
 - **`security_and_analysis`**: quedan activados `secret_scanning` y `secret_scanning_push_protection`. `secret_scanning_non_provider_patterns` y `secret_scanning_validity_checks` siguen desactivados: son extras que este repositorio no usa.
 - **Actions** (`sha_pinning_required`, aprobación de forks, token de workflows en solo lectura) y **reporte privado de vulnerabilidades**: la API los aceptó y la comprobación de cada uno devolvió el valor esperado.
 - **`gh label list --search`** es una búsqueda difusa y llegó a ocultar una de las seis etiquetas: la comprobación del paso 1.2 usa ahora `--limit 100` y `grep`.
+- **Fase 1 de Cloudflare Workers** (paso 6.1, comprobada en `*.workers.dev`): `_headers` llega tal cual en `/`, `/en/`, en la redirección `/en` a `/en/` (307) y en la 404, que responde con estado 404 de verdad. `/_astro/*` sale con `max-age=31536000, immutable`, el HTML con `max-age=0, must-revalidate` y `_headers` no se sirve como archivo. El HTML servido es idéntico al build local y un navegador real no muestra violaciones de CSP.
+- **DNS antes de la fase 2**: el dominio raíz no tenía registros A, AAAA ni CNAME, así que no hay conflicto con el Custom Domain. Los MX y el TXT de SPF del Email Routing siguen ahí, y `hola@carellabs.com` tiene su regla de reenvío.
 
 ## No verificado
 
@@ -315,6 +317,5 @@ Lo que queda de verdad pendiente:
 - **Salida de etiqueta entre jobs cuando `pr-policy` falla**: el código del runner evalúa las `outputs` del job al terminar, falle o no un paso, y la documentación solo dice que se evalúan "al final de cada job". Que el job `label` las reciba con el job anterior en rojo se confirma con el PR `feat:` sin issue del apartado "Primer PR de prueba". Si no llegara, el efecto sería solo que ese PR no se etiqueta.
 - **`sha_pinning_required`**: todas las acciones están fijadas por SHA (incluida `treosh/lighthouse-ci-action`). Si una ejecución falla por una acción "no fijada", es una acción nueva o un cambio de Dependabot que perdió el SHA.
 - **Ruta exacta de los menús de la interfaz**: importación del repositorio en Workers (paso 6.1) y *Configuration Rules* (paso 7). Las interfaces se reorganizan con frecuencia.
-- **Cabeceras en Cloudflare Workers**: `_headers` está documentado para los assets estáticos, pero lo que llega al navegador (incluida la 404 y la caché de `/_astro/*`) solo se ve con las comprobaciones del paso 7, en la fase 1.
 - **Custom Domain en el dominio raíz** (fase 2): que Cloudflare lo cree sin conflicto con los registros MX y TXT del Email Routing se confirma al desplegar.
 - **El workflow semanal `audit.yml`**: GitHub desactiva los workflows programados de un repositorio público tras 60 días sin actividad; si deja de llegar el aviso, actívalo de nuevo desde la pestaña *Actions*.

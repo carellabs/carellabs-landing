@@ -15,6 +15,9 @@
   "routes": [{ "pattern": "carellabs.com", "custom_domain": true }],
   "workers_dev": false,
   "preview_urls": true,
+  // Las builds de las ramas ejecutan `wrangler preview`, que exige este bloque. Vacío:
+  // la Preview no hereda routes ni el dominio y solo sirve los assets de su rama.
+  "previews": {},
   // Sin telemetría de wrangler, coherente con «sin rastreadores».
   "send_metrics": false
 }

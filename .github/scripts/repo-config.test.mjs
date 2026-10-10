@@ -489,6 +489,11 @@ describe("wrangler.jsonc: Cloudflare Workers con solo assets estáticos", () => 
     assert.equal(config().preview_urls, true);
   });
 
+  test("las ramas de PR pueden crear su Preview (`wrangler preview` exige el bloque, aunque esté vacío)", () => {
+    // Vacío: sin bindings ni variables, la Preview solo sirve los assets de su rama.
+    assert.deepEqual(config().previews, {});
+  });
+
   test("wrangler está en devDependencies (el despliegue usa la versión del lockfile, no la última)", () => {
     const pkg = JSON.parse(read("package.json"));
     assert.ok(pkg.devDependencies?.wrangler, "falta wrangler en devDependencies");

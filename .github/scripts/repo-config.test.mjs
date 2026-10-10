@@ -450,3 +450,42 @@ describe("ficheros del repositorio: avisos legales y seguridad", () => {
     assert.match(notice, /MIT/);
   });
 });
+
+describe("wrangler.jsonc: Cloudflare Workers con solo assets estáticos", () => {
+  /** wrangler.jsonc admite comentarios de línea y comas finales: se quitan antes de parsear. */
+  const config = () =>
+    JSON.parse(
+      read("wrangler.jsonc")
+        .replace(/^\s*\/\/.*$/gm, "")
+        .replace(/,(\s*[}\]])/g, "$1"),
+    );
+
+  test("sirve dist/ con la 404 propia (estado 404) y la barra final automática de las rutas", () => {
+    const c = config();
+    assert.equal(c.name, "carellabs-landing");
+    assert.match(c.compatibility_date, /^\d{4}-\d{2}-\d{2}$/);
+    assert.equal(c.assets.directory, "./dist");
+    assert.equal(c.assets.not_found_handling, "404-page");
+    assert.equal(c.assets.html_handling, "auto-trailing-slash");
+  });
+
+  test("no hay código Worker: con `main`, Cloudflare no aplicaría public/_headers (CSP y caché) a sus respuestas", () => {
+    const c = config();
+    assert.equal("main" in c, false, "wrangler.jsonc no debe declarar `main`");
+    assert.equal("binding" in c.assets, false, "sin Worker no hay binding de assets");
+  });
+
+  test("wrangler no envía telemetría (coherente con «sin rastreadores»)", () => {
+    assert.equal(config().send_metrics, false);
+  });
+
+  test("cada rama de PR tiene su URL de vista previa", () => {
+    assert.equal(config().preview_urls, true);
+  });
+
+  test("wrangler está en devDependencies (el despliegue usa la versión del lockfile, no la última)", () => {
+    const pkg = JSON.parse(read("package.json"));
+    assert.ok(pkg.devDependencies?.wrangler, "falta wrangler en devDependencies");
+    assert.equal(pkg.dependencies?.wrangler, undefined, "wrangler no debe ir en dependencies");
+  });
+});

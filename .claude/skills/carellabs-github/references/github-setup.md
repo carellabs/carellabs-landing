@@ -1,6 +1,6 @@
 # Configuración de GitHub de `carellabs-landing` (capa 1)
 
-> **Pasos 0 a 4 ejecutados contra el repositorio real el 10-oct-2026, con todas sus comprobaciones como se esperaba (ver "Verificado en la primera ejecución", al final). Los pasos 6 y 7 (Cloudflare) siguen sin ejecutar.**
+> **Pasos 0 a 4 ejecutados contra el repositorio real el 10-oct-2026, con todas sus comprobaciones como se esperaba (ver "Verificado en la primera ejecución", al final). Los pasos 6 y 7 (Cloudflare Workers) siguen sin ejecutar.**
 > Los puntos que la documentación no deja cerrados (o que dependen de la interfaz) están en "No verificado", al final. Antes de ejecutar un paso, comprueba que la documentación enlazada sigue diciendo lo mismo.
 
 Se ejecuta **una sola vez**, por una persona (no por un agente), cuando:
@@ -222,47 +222,63 @@ Tu cuenta debe tener 2FA activado antes. Qué pasa con quien no lo tenga, según
 
 No existe el ajuste de organización. Activa 2FA en tu propia cuenta (*Settings > Password and authentication*); además GitHub exige 2FA a quien contribuye código en github.com desde marzo de 2023.
 
-## 6. Despliegue: Cloudflare Pages con la integración Git
+## 6. Despliegue: Cloudflare Workers con la integración Git (Workers Builds)
 
-Panel de Cloudflare > **Workers & Pages** > **Create** > **Pages** > **Connect to Git**:
+Cloudflare recomienda Workers para los proyectos nuevos, en lugar de Pages ([doc](https://developers.cloudflare.com/pages/get-started/)). La web se publica como **assets estáticos** de un Worker sin código. La configuración está en `wrangler.jsonc`: `assets.directory` es `./dist`, la 404 propia responde con estado 404, cada PR tiene su vista previa (`preview_urls`) y `wrangler` no envía telemetría. `public/_headers` (CSP y caché) se aplica a todas las respuestas ([`_headers` en Workers](https://developers.cloudflare.com/workers/static-assets/headers/)). Si algún día se añadiera código Worker (`main`), esas cabeceras no se aplicarían a sus respuestas: un test de `repo-config.test.mjs` lo impide.
 
-1. Autoriza la app de Cloudflare y concédele acceso **solo** a `carellabs-landing`. Si `$OWNER` es una organización, se autoriza en la organización `$OWNER` (necesitas ser propietario). **Si es cuenta personal**, la app se instala en esa cuenta: no hay "organización" que autorizar, y el acceso al repositorio se limita desde *Settings > Applications* de tu cuenta de GitHub.
-2. Selecciona el repositorio.
-3. Rama de producción: `main`.
-4. Build command: `npm run build`. Build output directory: `dist`.
-5. Versión de Node: no hace falta `NODE_VERSION`. Pages lee `.nvmrc` de la raíz del repo, que fija la misma versión que usa el CI. Es obligatorio: la imagen de build v3 trae Node 22.16.0 por defecto y una dependencia de Astro (`undici`) exige `>=22.19.0` ([build image de Pages](https://developers.cloudflare.com/pages/configuration/build-image/)).
-6. Previews: déjalos activados para **todas las ramas que no sean la de producción**, y activa los comentarios en los PR (así cada PR trae su URL de vista previa).
-7. **No actives Web Analytics** del proyecto (*Metrics > Web Analytics*): al activarlo, Cloudflare añade un script a la web en el siguiente despliegue ([doc](https://developers.cloudflare.com/pages/how-to/web-analytics/)). Lo bloquearía la CSP y contradice "sin rastreadores".
-8. Dominio: añade `carellabs.com` en *Custom domains* cuando el primer despliegue funcione.
+Se hace en dos fases, para comprobar la web en Cloudflare antes de tocar el dominio.
 
-Las cabeceras de seguridad y la caché de los archivos con hash viajan en `public/_headers` ([formato](https://developers.cloudflare.com/pages/configuration/headers/)).
+### 6.1 Fase 1: conectar el repositorio (la web solo en `*.workers.dev`)
 
-## 7. Comprobaciones tras el primer despliegue
+Panel de Cloudflare > **Workers & Pages** > **Create application** > importar un repositorio de Git:
 
-Con el dominio ya sirviendo la web:
+1. Conecta GitHub e instala la app **Cloudflare Workers and Pages** con la sesión de la cuenta propietaria (`$OWNER`). Concédele acceso **solo** a `carellabs-landing` (*Only select repositories*). Si es cuenta personal, ese acceso se revisa después en *Settings > Applications* de GitHub.
+2. Selecciona el repositorio. El nombre del Worker debe coincidir con el de `wrangler.jsonc`: `carellabs-landing`.
+3. Build command: `npm run build`. Deploy command: `npx wrangler deploy` (usa el `wrangler` fijado en `package.json`). Ruta: la raíz del repositorio.
+4. Versión de Node: la imagen de Workers Builds lee `.nvmrc` ([build image](https://developers.cloudflare.com/workers/ci-cd/builds/build-image/)), así que no hace falta `NODE_VERSION`.
+5. Rama de producción: `main`. Activa las builds de las ramas que no son de producción, para que cada PR reciba en un comentario su URL de vista previa ([ramas](https://developers.cloudflare.com/workers/ci-cd/builds/build-branches/)).
+6. **No actives Web Analytics** ni nada que inyecte scripts en la web: lo bloquearía la CSP y contradice "sin rastreadores".
 
-**Cabeceras reales.** La CSP y el resto tienen que llegar tal cual están en `public/_headers`:
+Al conectar (y en cada fusión a `main`), Workers Builds construye y despliega. La web queda en `https://carellabs-landing.<subdominio>.workers.dev`: haz con esa URL las comprobaciones del paso 7.
 
-```bash
-curl -sI https://carellabs.com
+### 6.2 Fase 2: el dominio `carellabs.com`
+
+Con la fase 1 comprobada, un PR añade el dominio en `wrangler.jsonc` (así no depende de clics en el panel) y desactiva `*.workers.dev` para producción:
+
+```jsonc
+"routes": [{ "pattern": "carellabs.com", "custom_domain": true }],
+"workers_dev": false,
 ```
 
-La documentación de `_headers` no dice expresamente si se aplica a la página 404. Compruébalo:
+Al desplegar, Cloudflare crea el *Custom Domain* en la zona `carellabs.com`, que debe estar en la misma cuenta. Si ya existe un registro A, AAAA o CNAME en el dominio raíz, bórralo antes. Los registros MX y TXT del Email Routing se quedan como están. Las vistas previas de los PR siguen en `workers.dev`.
+
+Opcional: para que `www.carellabs.com` lleve a `carellabs.com`, usa una *Redirect Rule* de la zona (plantilla de redirección de www al dominio raíz) en vez de código.
+
+## 7. Comprobaciones tras cada fase
+
+Primero con la URL `*.workers.dev` (fase 1) y después con `carellabs.com` (fase 2). En los comandos, `HOST` es la que toque:
 
 ```bash
-curl -sI https://carellabs.com/no-existe     # 404, con content-security-policy y x-content-type-options
+HOST="carellabs-landing.<subdominio>.workers.dev"   # fase 1; en la fase 2: HOST="carellabs.com"
+```
+
+**Cabeceras reales.** La CSP y el resto tienen que llegar tal cual están en `public/_headers`, también en la 404:
+
+```bash
+curl -sI "https://$HOST"
+curl -sI "https://$HOST/no-existe"     # 404, con content-security-policy y x-content-type-options
 ```
 
 Busca `content-security-policy` (con `default-src 'self'`, `img-src 'self'`, `form-action 'none'`...), `x-content-type-options`, `x-frame-options`, `referrer-policy` y `permissions-policy`. Y la caché de un archivo con hash:
 
 ```bash
-ASSET="$(curl -s https://carellabs.com | grep -o '/_astro/[^"]*\.css' | head -n 1)"
-curl -sI "https://carellabs.com$ASSET" | grep -i cache-control      # public, max-age=31536000, immutable
+ASSET="$(curl -s "https://$HOST" | grep -o '/_astro/[^"]*\.css' | head -n 1)"
+curl -sI "https://$HOST$ASSET" | grep -i cache-control      # public, max-age=31536000, immutable
 ```
 
-**Consola sin violaciones de CSP.** Abre `/`, `/en/` y una URL inexistente con las herramientas de desarrollo (pestaña *Console*). No debe aparecer ningún mensaje "Refused to ... because it violates the following Content Security Policy directive". Si aparece, una de las directivas es más estricta de lo que la web necesita (o Cloudflare inyecta algo: ver el punto 7 del paso anterior).
+**Consola sin violaciones de CSP.** Abre `/`, `/en/` y una URL inexistente con las herramientas de desarrollo (pestaña *Console*). No debe aparecer ningún mensaje "Refused to ... because it violates the following Content Security Policy directive". Si aparece, una directiva es más estricta de lo que la web necesita, o Cloudflare está inyectando algo (ver el punto 6 del paso 6.1).
 
-**Cloudflare no ofusca el correo.** El correo (`hola@carellabs.com`) debe llegar en claro en el HTML:
+**Cloudflare no ofusca el correo** (solo en la fase 2: la ofuscación es un ajuste de la zona `carellabs.com`). El correo (`hola@carellabs.com`) debe llegar en claro en el HTML:
 
 ```bash
 curl -s https://carellabs.com | grep -c hola@carellabs.com        # 1 o más: correcto
@@ -298,6 +314,7 @@ Lo que queda de verdad pendiente:
 
 - **Salida de etiqueta entre jobs cuando `pr-policy` falla**: el código del runner evalúa las `outputs` del job al terminar, falle o no un paso, y la documentación solo dice que se evalúan "al final de cada job". Que el job `label` las reciba con el job anterior en rojo se confirma con el PR `feat:` sin issue del apartado "Primer PR de prueba". Si no llegara, el efecto sería solo que ese PR no se etiqueta.
 - **`sha_pinning_required`**: todas las acciones están fijadas por SHA (incluida `treosh/lighthouse-ci-action`). Si una ejecución falla por una acción "no fijada", es una acción nueva o un cambio de Dependabot que perdió el SHA.
-- **Ruta exacta de los menús de la interfaz**: instalación de la app de Cloudflare (paso 6) y *Configuration Rules* (paso 7). Las interfaces se reorganizan con frecuencia.
-- **Cabeceras de Cloudflare Pages**: `_headers` está documentado, pero lo que llega al navegador (incluida la caché de `/_astro/*`) solo se ve con las comprobaciones del paso 7.
+- **Ruta exacta de los menús de la interfaz**: importación del repositorio en Workers (paso 6.1) y *Configuration Rules* (paso 7). Las interfaces se reorganizan con frecuencia.
+- **Cabeceras en Cloudflare Workers**: `_headers` está documentado para los assets estáticos, pero lo que llega al navegador (incluida la 404 y la caché de `/_astro/*`) solo se ve con las comprobaciones del paso 7, en la fase 1.
+- **Custom Domain en el dominio raíz** (fase 2): que Cloudflare lo cree sin conflicto con los registros MX y TXT del Email Routing se confirma al desplegar.
 - **El workflow semanal `audit.yml`**: GitHub desactiva los workflows programados de un repositorio público tras 60 días sin actividad; si deja de llegar el aviso, actívalo de nuevo desde la pestaña *Actions*.

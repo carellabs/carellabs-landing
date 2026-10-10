@@ -4,7 +4,7 @@
 
 Usa el reporte privado de GitHub: pestaña **Security** del repositorio, botón **Report a vulnerability**. Solo lo ves tú y el propietario.
 
-Si lo prefieres, escribe a **hola@carellabs.com** con el asunto "Seguridad: carellabs-landing". En ambos casos, incluye:
+Si lo prefieres, escribe a **security@carellabs.com**. En ambos casos, incluye:
 
 - qué has encontrado y dónde (URL o fichero),
 - cómo reproducirlo,
@@ -13,6 +13,8 @@ Si lo prefieres, escribe a **hola@carellabs.com** con el asunto "Seguridad: care
 **No abras una issue pública** para una vulnerabilidad: cualquiera la vería antes de que haya arreglo.
 
 Responderé en cuanto pueda. Es un proyecto personal, sin SLA.
+
+Estos mismos contactos están publicados en https://carellabs.com/.well-known/security.txt (RFC 9116).
 
 ## Alcance
 

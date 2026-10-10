@@ -1,0 +1,297 @@
+# Configuración de GitHub de `carellabs-landing` (capa 1)
+
+> **Revisada contra docs.github.com y developers.cloudflare.com el 9-oct-2026, pero ningún comando se ha ejecutado contra un repositorio real.**
+> Los puntos que la documentación no deja cerrados (o que dependen de la interfaz) están en "No verificado", al final. Antes de ejecutar un paso, comprueba que la documentación enlazada sigue diciendo lo mismo.
+
+Se ejecuta **una sola vez**, por una persona (no por un agente), cuando:
+
+- la cuenta propietaria existe y tienes control total sobre ella (ver "Propietario" más abajo);
+- el repositorio local tiene sus primeros commits, ya en la rama `main`;
+- los workflows (`.github/workflows/`) y `.github/dependabot.yml` están en esos commits;
+- no quedan placeholders: `TU_USUARIO` está sustituido en `src/i18n/*.json` por la cuenta real (es decir, `$OWNER` ya está decidido). Si no, el check `test` falla en CI desde el primer push y el primer PR no se puede fusionar.
+
+Todos los comandos se lanzan desde la raíz del repositorio, en el orden de esta guía. Cada paso trae su comprobación.
+
+## Variables
+
+```bash
+OWNER=carellabs                      # cuenta personal de GitHub (decidido el 10-oct-2026)
+REPO="$OWNER/carellabs-landing"
+```
+
+Las variables solo existen en la terminal donde las defines: ejecuta toda la guía en la misma sesión, o vuelve a definirlas antes de cada bloque.
+
+**Propietario: cuenta personal `carellabs`** (decidido el 10-oct-2026; la API la devuelve como `"type": "User"`). Donde la guía distingue entre organización y cuenta personal, aplica siempre la rama "Si es cuenta personal". Los comandos siguen usando `$OWNER` y `$REPO`.
+
+## 0. Comprobaciones previas
+
+```bash
+gh auth status                      # cuenta carellabs, "Git operations protocol: ssh"
+ssh -T git@github.com               # "Hi carellabs! ..." (pide la frase de la clave)
+git config --local user.email       # identidad propia del repo definida (si sale vacío, para)
+git branch --show-current           # debe ser main
+grep -rn "TU_USUARIO" src/          # no debe imprimir nada (si imprime, para)
+```
+
+**El push va por SSH**, con la clave de la cuenta carellabs (`~/.ssh/id_ed25519_carellabs`, asignada a `github.com` en `~/.ssh/config`). Si en tu equipo la credencial HTTPS guardada para GitHub es la de **otra** cuenta (la de otro proyecto), este repositorio no debe usar HTTPS: el push saldría con esa cuenta o fallaría. Con SSH, el push no depende del token de `gh` ni de su scope `workflow`; ese scope solo hace falta para hacer push de `.github/workflows/` por HTTPS con el token de `gh`, y aquí no se hace. `gh` se usa solo para la API (crear el repo, etiquetas, ajustes, ruleset) con los scopes por defecto (`repo`, `read:org`, `gist`).
+
+Si la rama se llama `master`: `git branch -M main`.
+
+## 1. Crear el repositorio, las etiquetas y hacer el primer push
+
+El orden importa: las etiquetas tienen que existir **antes** del primer `git push`, porque ese push lleva `dependabot.yml` y sus primeros PR (con `labels: ["type:chore"]`) saldrían sin etiqueta. Y para crear etiquetas el repositorio tiene que existir, así que primero se crea vacío.
+
+### 1.1 Crear el repositorio público (vacío, sin remoto local todavía)
+
+```bash
+gh repo create "$REPO" --public \
+  --homepage "https://carellabs.com" \
+  --description "Landing / portfolio de carellabs.com (Astro, estática, bilingüe ES/EN)"
+```
+
+### 1.2 Etiquetas
+
+También las usa el workflow `pr-policy` al etiquetar cada PR. `--force` actualiza la etiqueta si ya existe.
+
+```bash
+gh label create "type:feature"         --repo "$REPO" --color 0E8A16 --description "Funcionalidad nueva (feat, perf)" --force
+gh label create "type:bug"             --repo "$REPO" --color D73A4A --description "Corrección de un fallo (fix, revert)" --force
+gh label create "type:docs"            --repo "$REPO" --color 0075CA --description "Documentación" --force
+gh label create "type:refactor"        --repo "$REPO" --color 5319E7 --description "Refactor sin cambio de comportamiento" --force
+gh label create "type:chore"           --repo "$REPO" --color CFD3D7 --description "Mantenimiento (chore, style, test, build, ci)" --force
+gh label create "type:breaking-change" --repo "$REPO" --color B60205 --description "Cambio incompatible (tipo con !)" --force
+```
+
+Comprobación: `gh label list --repo "$REPO" --search "type:"` debe listar las seis.
+
+### 1.3 Remoto y primer push
+
+```bash
+git remote add origin "git@github.com:$REPO.git"
+git push -u origin main
+```
+
+Comprobación del remoto: `git remote get-url origin` debe dar `git@github.com:carellabs/carellabs-landing.git` (SSH, no `https://`).
+
+Ese `git push` directo a `main` es la **única excepción** a la regla "nunca push a `main`" (la skill remite a este apartado): el repositorio está vacío y todavía no hay ruleset (sin un primer commit en `main` no existen ni la rama por defecto ni los workflows, y los checks obligatorios no podrían ejecutarse). A partir del paso 3, `main` queda protegida.
+
+Comprobación: `gh repo view "$REPO" --json visibility,defaultBranchRef --jq '.visibility, .defaultBranchRef.name'` debe dar `PUBLIC` y `main`.
+
+## 2. Ajustes del repositorio
+
+Solo squash, con el título del PR como título del commit y los mensajes de los commits de la rama como mensaje; ramas fusionadas se borran; sin wiki.
+
+```bash
+gh api -X PATCH "repos/$REPO" \
+  -F allow_squash_merge=true \
+  -F allow_merge_commit=false \
+  -F allow_rebase_merge=false \
+  -f squash_merge_commit_title=PR_TITLE \
+  -f squash_merge_commit_message=COMMIT_MESSAGES \
+  -F delete_branch_on_merge=true \
+  -F allow_update_branch=true \
+  -F has_wiki=false
+```
+
+`-F` (mayúscula) envía booleanos reales; `-f` los enviaría como texto `"false"`. No los intercambies.
+
+Comprobación:
+
+```bash
+gh api "repos/$REPO" --jq '{allow_squash_merge, allow_merge_commit, allow_rebase_merge, squash_merge_commit_title, squash_merge_commit_message, delete_branch_on_merge, allow_update_branch, has_wiki}'
+```
+
+Esperado (un objeto JSON en una línea): `{"allow_squash_merge":true,"allow_merge_commit":false,"allow_rebase_merge":false,"squash_merge_commit_title":"PR_TITLE","squash_merge_commit_message":"COMMIT_MESSAGES","delete_branch_on_merge":true,"allow_update_branch":true,"has_wiki":false}`.
+
+`allow_update_branch`: el ruleset exige que la rama del PR esté al día con `main` (`strict_required_status_checks_policy`); con este ajuste el PR muestra el botón *Update branch* en vez de obligar a actualizarla a mano.
+
+Por qué `COMMIT_MESSAGES` (decisión del propietario): el cuerpo del commit en `main` es la lista de los commits convencionales de la rama, uno por unidad de trabajo, en lugar de la plantilla del PR con sus casillas y comentarios. Con `PR_BODY` esa plantilla entera acabaría en el historial.
+
+Validez de la combinación: la [API REST de repositorios](https://docs.github.com/en/rest/repos/repos#update-a-repository) documenta `PR_TITLE` y `COMMIT_OR_PR_TITLE` para el título, y `PR_BODY`, `COMMIT_MESSAGES` y `BLANK` para el mensaje (y exige indicar el título cuando se indica el mensaje). La [guía de la interfaz](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/configuring-commit-squashing-for-pull-requests) ofrece "el título del PR y los detalles de los commits". Si la API respondiera 422 a esta pareja, la comprobación de arriba lo dejaría a la vista; en ese caso, cámbialo desde *Settings > General > Pull Requests*.
+
+## 3. Ruleset de la rama por defecto
+
+El fichero `assets/ruleset-main.json` (en esta misma skill) define, sobre `~DEFAULT_BRANCH`:
+
+| Regla | Efecto |
+|---|---|
+| `deletion` | `main` no se puede borrar |
+| `non_fast_forward` | sin force push |
+| `required_linear_history` | historial lineal |
+| `pull_request` | PR obligatorio, 0 aprobaciones, hilos resueltos, solo squash |
+| `required_status_checks` | `test`, `lighthouse` y `pr-policy`, publicados por la app GitHub Actions (`integration_id` 15368), con política estricta (la rama del PR debe estar al día con `main`) |
+
+`bypass_actors` está vacío: nadie, tampoco el propietario, se salta el ruleset. Para una emergencia, desactívalo a mano en *Settings > Rules > Rulesets*.
+
+El `integration_id` evita que otra app o un estado publicado a mano por la API satisfaga un check con el mismo nombre. 15368 es el identificador de la app GitHub Actions: se puede confirmar con `gh api apps/github-actions --jq .id`.
+
+```bash
+gh api -X POST "repos/$REPO/rulesets" \
+  --input .claude/skills/carellabs-github/assets/ruleset-main.json
+```
+
+Comprobación:
+
+```bash
+gh api "repos/$REPO/rulesets" --jq '.[] | {id, name, enforcement}'
+gh api "repos/$REPO/rules/branches/main" --jq '.[].type'
+```
+
+Esperado: un ruleset `main` con `enforcement: "active"` y los cinco tipos de regla.
+
+Los nombres de los checks (`test`, `lighthouse`, `pr-policy`) son los `name` de los jobs de `ci.yml` y `pr-policy.yml`. El workflow `pr-policy.yml` tiene además un job `label` (pone la etiqueta `type:*`) que **no** es obligatorio, y `audit.yml` (auditoría semanal completa de dependencias) tampoco. Si al abrir el primer PR alguno de los tres obligatorios se queda en "Expected - Waiting for status to be reported", el contexto no coincide con el nombre real del check: corrígelo en el ruleset (ver "No verificado").
+
+Para deshacerlo: `gh api -X DELETE "repos/$REPO/rulesets/<id>"`.
+
+Referencia de los campos: [REST, reglas y rulesets](https://docs.github.com/en/rest/repos/rules).
+
+## 4. Seguridad del repositorio y de Actions
+
+### 4.1 Alertas, actualizaciones de seguridad y escaneo de secretos
+
+```bash
+gh api -X PUT "repos/$REPO/vulnerability-alerts"
+gh api -X PUT "repos/$REPO/automated-security-fixes"
+gh api -X PUT "repos/$REPO/private-vulnerability-reporting"   # canal privado que cita SECURITY.md (Report a vulnerability)
+
+gh api -X PATCH "repos/$REPO" --input - <<'EOF'
+{
+  "security_and_analysis": {
+    "secret_scanning": { "status": "enabled" },
+    "secret_scanning_push_protection": { "status": "enabled" }
+  }
+}
+EOF
+```
+
+Precaución, no requisito documentado: se activan primero las alertas (que habilitan el grafo de dependencias) y después las actualizaciones de seguridad automáticas, porque estas últimas se apoyan en ese grafo.
+
+Comprobación:
+
+```bash
+gh api "repos/$REPO/vulnerability-alerts" -i | head -n 1     # 204 = activadas, 404 = desactivadas
+gh api "repos/$REPO/automated-security-fixes" --jq .enabled   # true
+gh api "repos/$REPO/private-vulnerability-reporting" --jq .enabled   # true
+gh api "repos/$REPO" --jq .security_and_analysis              # secret_scanning y push protection: enabled
+```
+
+### 4.2 Actions: acciones fijadas por SHA y aprobación de forks
+
+```bash
+# Exige que toda acción de un workflow esté fijada a un SHA completo (los nuestros ya lo están).
+gh api -X PUT "repos/$REPO/actions/permissions" -F enabled=true -F sha_pinning_required=true
+
+# Los PR de colaboradores externos (forks) necesitan aprobación manual para ejecutar workflows.
+gh api -X PUT "repos/$REPO/actions/permissions/fork-pr-contributor-approval" \
+  -f approval_policy=all_external_contributors
+```
+
+Ambos endpoints están en la [referencia REST de permisos de Actions](https://docs.github.com/en/rest/actions/permissions). El primero no toca `allowed_actions` (si no lo envías, no lo cambias). El segundo admite `first_time_contributors_new_to_github`, `first_time_contributors` y `all_external_contributors` (el más estricto, el elegido).
+
+Comprobación:
+
+```bash
+gh api "repos/$REPO/actions/permissions" --jq '{enabled, sha_pinning_required}'                 # true, true
+gh api "repos/$REPO/actions/permissions/fork-pr-contributor-approval" --jq .approval_policy      # all_external_contributors
+```
+
+### Opcional: token de workflows de solo lectura
+
+Es coherente con los `permissions` explícitos de los workflows: el valor por defecto del repositorio también queda en lectura.
+
+```bash
+gh api -X PUT "repos/$REPO/actions/permissions/workflow" \
+  -f default_workflow_permissions=read \
+  -F can_approve_pull_request_reviews=false
+```
+
+## 5. Autenticación en dos factores
+
+### Si `$OWNER` es una organización (interfaz web; no hay un comando `gh` fiable)
+
+1. `github.com` > foto de perfil > **Your organizations** > `$OWNER` > **Settings**.
+2. Barra lateral: **Authentication security** (dentro del grupo *Security*).
+3. Marca **Require two-factor authentication for everyone in your organization** y guarda.
+
+Tu cuenta debe tener 2FA activado antes. Qué pasa con quien no lo tenga, según la [documentación de GitHub](https://docs.github.com/en/organizations/keeping-your-organization-secure/managing-two-factor-authentication-for-your-organization/requiring-two-factor-authentication-in-your-organization):
+
+- **Miembros y gestores de facturación** sin 2FA: quedan **bloqueados** (no pueden acceder a los recursos de la organización) hasta que lo activen, pero **conservan la membresía** y siguen consumiendo plaza.
+- **Colaboradores externos** sin 2FA: **se retiran** de la organización y pierden el acceso a sus repositorios (y a sus forks de los repositorios privados). Se les puede reinstaurar si activan 2FA en los tres meses siguientes. Las cuentas de bots o de servicio que sean colaboradores externos también necesitan 2FA.
+
+### Si `$OWNER` es una cuenta personal
+
+No existe el ajuste de organización. Activa 2FA en tu propia cuenta (*Settings > Password and authentication*); además GitHub exige 2FA a quien contribuye código en github.com desde marzo de 2023.
+
+## 6. Despliegue: Cloudflare Pages con la integración Git
+
+Panel de Cloudflare > **Workers & Pages** > **Create** > **Pages** > **Connect to Git**:
+
+1. Autoriza la app de Cloudflare y concédele acceso **solo** a `carellabs-landing`. Si `$OWNER` es una organización, se autoriza en la organización `$OWNER` (necesitas ser propietario). **Si es cuenta personal**, la app se instala en esa cuenta: no hay "organización" que autorizar, y el acceso al repositorio se limita desde *Settings > Applications* de tu cuenta de GitHub.
+2. Selecciona el repositorio.
+3. Rama de producción: `main`.
+4. Build command: `npm run build`. Build output directory: `dist`.
+5. Versión de Node: no hace falta `NODE_VERSION`. Pages lee `.nvmrc` de la raíz del repo, que fija la misma versión que usa el CI. Es obligatorio: la imagen de build v3 trae Node 22.16.0 por defecto y una dependencia de Astro (`undici`) exige `>=22.19.0` ([build image de Pages](https://developers.cloudflare.com/pages/configuration/build-image/)).
+6. Previews: déjalos activados para **todas las ramas que no sean la de producción**, y activa los comentarios en los PR (así cada PR trae su URL de vista previa).
+7. **No actives Web Analytics** del proyecto (*Metrics > Web Analytics*): al activarlo, Cloudflare añade un script a la web en el siguiente despliegue ([doc](https://developers.cloudflare.com/pages/how-to/web-analytics/)). Lo bloquearía la CSP y contradice "sin rastreadores".
+8. Dominio: añade `carellabs.com` en *Custom domains* cuando el primer despliegue funcione.
+
+Las cabeceras de seguridad y la caché de los archivos con hash viajan en `public/_headers` ([formato](https://developers.cloudflare.com/pages/configuration/headers/)).
+
+## 7. Comprobaciones tras el primer despliegue
+
+Con el dominio ya sirviendo la web:
+
+**Cabeceras reales.** La CSP y el resto tienen que llegar tal cual están en `public/_headers`:
+
+```bash
+curl -sI https://carellabs.com
+```
+
+La documentación de `_headers` no dice expresamente si se aplica a la página 404. Compruébalo:
+
+```bash
+curl -sI https://carellabs.com/no-existe     # 404, con content-security-policy y x-content-type-options
+```
+
+Busca `content-security-policy` (con `default-src 'self'`, `img-src 'self'`, `form-action 'none'`...), `x-content-type-options`, `x-frame-options`, `referrer-policy` y `permissions-policy`. Y la caché de un archivo con hash:
+
+```bash
+ASSET="$(curl -s https://carellabs.com | grep -o '/_astro/[^"]*\.css' | head -n 1)"
+curl -sI "https://carellabs.com$ASSET" | grep -i cache-control      # public, max-age=31536000, immutable
+```
+
+**Consola sin violaciones de CSP.** Abre `/`, `/en/` y una URL inexistente con las herramientas de desarrollo (pestaña *Console*). No debe aparecer ningún mensaje "Refused to ... because it violates the following Content Security Policy directive". Si aparece, una de las directivas es más estricta de lo que la web necesita (o Cloudflare inyecta algo: ver el punto 7 del paso anterior).
+
+**Cloudflare no ofusca el correo.** El correo (`hola@carellabs.com`) debe llegar en claro en el HTML:
+
+```bash
+curl -s https://carellabs.com | grep -c hola@carellabs.com        # 1 o más: correcto
+```
+
+Si da `0` y en el HTML aparece `[email protected]`, Cloudflare tiene activa la *Email Address Obfuscation* y la web depende de su script para mostrar el correo. Desactívala **solo para este host** con una *Configuration Rule* (*Rules > Configuration Rules*, ajuste *Email Obfuscation* en off, condición: hostname igual a `carellabs.com`), en vez de en toda la zona ([doc](https://developers.cloudflare.com/waf/tools/scrape-shield/email-address-obfuscation/), [ajustes de Configuration Rules](https://developers.cloudflare.com/rules/configuration-rules/settings/)). Repite la comprobación para `/en/`.
+
+**HSTS: todavía no.** `public/_headers` no envía `Strict-Transport-Security` a propósito. Actívalo (en Cloudflare, *SSL/TLS > Edge Certificates*, o como cabecera) solo cuando **todos los subdominios** (`finanzas.`, `barberia.`, `closet.` y los futuros) sirvan HTTPS: con `includeSubDomains` los que no lo hagan quedan inaccesibles, y con `preload` es difícil dar marcha atrás ([doc](https://developers.cloudflare.com/ssl/edge-certificates/additional-options/http-strict-transport-security/)).
+
+## Primer PR de prueba
+
+Con todo configurado, abre un PR `docs: ...` pequeño y comprueba:
+
+- que aparecen los checks `test`, `lighthouse` y `pr-policy` con esos nombres exactos (y que `label` aparece aparte, sin ser obligatorio);
+- que el PR recibe la etiqueta `type:docs`;
+- que el botón de fusión solo ofrece *Squash and merge*, que el título propuesto es el del PR y que el mensaje son los commits de la rama;
+- que un PR `feat: ...` sin `Closes #N` falla en `pr-policy` **y aun así recibe la etiqueta `type:feature`** (es la comprobación del paso de salidas entre los jobs `pr-policy` y `label`).
+
+## No verificado
+
+Lo que queda de verdad pendiente. Comprueba estos puntos en la documentación o en la propia interfaz antes de darlos por buenos:
+
+- **Nada se ha ejecutado contra un repositorio real.** Las rutas, los nombres de parámetro y los valores permitidos de los pasos 2, 3 y 4 se han contrastado con la documentación REST de GitHub; el comportamiento real lo confirma la primera ejecución (cada paso trae su comprobación).
+- **Pareja `PR_TITLE` + `COMMIT_MESSAGES`**: cada valor está documentado, y la interfaz ofrece "título del PR y detalles de los commits", pero la documentación no publica una tabla de parejas válidas. Lo cierra la comprobación del paso 2.
+- **Salida de etiqueta entre jobs cuando `pr-policy` falla**: el código del runner evalúa las `outputs` del job al terminar, falle o no un paso, y la documentación solo dice que se evalúan "al final de cada job". Que el job `label` las reciba con el job anterior en rojo se confirma con el PR `feat:` sin issue del apartado anterior. Si no llegara, el efecto sería solo que ese PR no se etiqueta.
+- **`integration_id` 15368** en los tres contextos: está documentado como campo opcional de `required_status_checks`, y el identificador sale de `gh api apps/github-actions`. Si un check se queda en "Expected" en el primer PR, revisa este punto primero.
+- **`sha_pinning_required`**: ya hay que tener todas las acciones fijadas por SHA (lo están, incluida `treosh/lighthouse-ci-action`). Si una ejecución falla por una acción "no fijada", es una acción nueva o un cambio de Dependabot que perdió el SHA.
+- **Anidado `security_and_analysis`** en el `PATCH` del repositorio: en repositorios públicos el escaneo de secretos puede venir ya activado y la protección de push puede tener otro estado por defecto.
+- **`PUT .../actions/permissions/workflow`** (sección opcional del paso 4).
+- **Ruta exacta de los menús de la interfaz**: 2FA de la organización (paso 5), instalación de la app de Cloudflare (paso 6) y *Configuration Rules* (paso 7). Las interfaces se reorganizan con frecuencia.
+- **Cabeceras de Cloudflare Pages**: `_headers` está documentado, pero lo que llega al navegador (incluida la caché de `/_astro/*`) solo se ve con las comprobaciones del paso 7.
+- **El workflow semanal `audit.yml`**: GitHub desactiva los workflows programados de un repositorio público tras 60 días sin actividad; si deja de llegar el aviso, actívalo de nuevo desde la pestaña *Actions*.

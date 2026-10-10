@@ -1,0 +1,11 @@
+# Finales de línea LF en el repo aunque se trabaje en Windows (core.autocrlf).
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.woff binary
+*.woff2 binary

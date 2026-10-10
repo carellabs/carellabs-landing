@@ -1,0 +1,44 @@
+---
+import apps from "../../data/apps.json";
+import type { Lang, Messages } from "../../i18n/types";
+
+interface Props {
+  lang: Lang;
+  t: Messages;
+}
+const { lang, t } = Astro.props;
+
+type Status = keyof Messages["lab"]["status"];
+---
+
+<section class="section" id="lab" aria-labelledby="h-lab">
+  <h2 id="h-lab">{t.lab.title}</h2>
+  <p class="section-intro">{t.lab.intro}</p>
+  <ul class="apps" role="list">
+    {
+      apps.map((app) => {
+        // Solo las apps en beta o disponibles enlazan; el resto se muestra sin enlace.
+        const linked = app.status === "live" || app.status === "beta";
+        return (
+          <li class="app">
+            <div class="app-head">
+              <div>
+                <h3 class="name">
+                  {linked ? <a href={app.url} rel="noopener">{app.name}</a> : app.name}
+                </h3>
+                <p class="host">{new URL(app.url).hostname}</p>
+              </div>
+              <span class="status" data-status={app.status}>
+                {t.lab.status[app.status as Status]}
+              </span>
+            </div>
+            <p class="desc">{app.description[lang]}</p>
+            <ul class="tokens" role="list" aria-label={t.lab.stackLabel}>
+              {app.stack.map((s) => <li>{s}</li>)}
+            </ul>
+          </li>
+        );
+      })
+    }
+  </ul>
+</section>

@@ -1,0 +1,437 @@
+/* ---------- Tokens ----------
+   Base oscura. El esquema claro sobrescribe los colores en el bloque
+   `prefers-color-scheme: light` de más abajo.
+
+   --accent colorea TEXTO (email, periodo actual, estado beta, hovers).
+   --fill   colorea RELLENOS (botón principal, estado live, nodo del puesto actual).
+   En claro no son el mismo color: el ámbar de relleno contra el fondo da 1.7:1,
+   así que los rellenos llevan además borde con --accent (WCAG 1.4.11). */
+:root {
+  color-scheme: light dark;
+
+  --bg: #0e0f11;
+  --surface: #16181b;
+  --surface-2: #1b1e22;
+  --tint: #1c1912;
+  --line: #2a2d32;
+  --rail: #3d4147;
+  --ink: #ededea;
+  --ink-2: #b3b6ba;
+  --ink-3: #8d9197;
+  --accent: #f2b13a;
+  --fill: #f2b13a;
+  --on-fill: #0e0f11;
+  --dots: rgba(237, 237, 234, 0.07);
+
+  --display: "JetBrains Mono Variable", ui-monospace, "SF Mono", Consolas, monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --r: 8px;
+  --gutter: clamp(1rem, 4vw, 3rem);
+  --measure: 62ch;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f4f4f1;
+    --surface: #fafaf8;
+    --surface-2: #ecece8;
+    --tint: #f7f0e1;
+    --line: #d9d9d3;
+    --rail: #a3a6ab;
+    --ink: #131417;
+    --ink-2: #45484d;
+    --ink-3: #5f636a;
+    --accent: #8a5700;
+    --fill: #f2b13a;
+    --dots: rgba(19, 20, 23, 0.07);
+  }
+}
+
+/* ---------- Base ---------- */
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth; }
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 400 1.0625rem/1.65 var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3, p, ul, ol, dl, dd { margin: 0; }
+ul, ol { padding: 0; list-style: none; }
+a { color: inherit; }
+p { text-wrap: pretty; }
+::selection { background: var(--fill); color: var(--on-fill); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+/* `main` recibe el foco al usar el enlace de salto (tabindex="-1", que Safari necesita).
+   Un anillo alrededor de toda la página es ruido: se quita solo aquí; los enlaces y botones
+   conservan su :focus-visible. */
+#main:focus { outline: none; }
+[id] { scroll-margin-top: 1rem; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; }
+}
+
+.skip {
+  position: absolute;
+  left: var(--gutter);
+  top: -6rem;
+  z-index: 2;
+  padding: 0.75rem 1rem;
+  background: var(--fill);
+  color: var(--on-fill);
+  font-weight: 600;
+  text-decoration: none;
+}
+.skip:focus { top: 0.5rem; }
+
+.wrap {
+  max-width: 80rem;
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+/* ---------- Cabecera ---------- */
+.topbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0 2rem;
+  min-height: 4rem;
+  border-bottom: 1px solid var(--line);
+}
+.brand {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: 1.0625rem;
+  letter-spacing: -0.03em;
+  text-decoration: none;
+}
+.nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 1.25rem;
+  font-family: var(--display);
+  font-size: 0.8125rem;
+}
+.nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--ink-2);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+.nav a:hover { color: var(--accent); }
+.nav a[lang] {
+  color: var(--ink);
+  padding-left: 1.25rem;
+  border-left: 1px solid var(--line);
+}
+
+/* ---------- Hero ---------- */
+.hero { padding-block: clamp(3rem, 8vw, 6rem) clamp(3.5rem, 7vw, 5.5rem); }
+.who {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  margin-bottom: 1.5rem;
+  font-family: var(--display);
+  font-size: 0.875rem;
+  color: var(--ink-2);
+}
+.who strong { color: var(--ink); font-weight: 700; }
+.hero h1 {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: clamp(1.5rem, 0.85rem + 2.35vw, 2.75rem);
+  line-height: 1.18;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+}
+.note {
+  display: flex;
+  flex-wrap: wrap;
+  margin-top: 1.75rem;
+  font-family: var(--display);
+  font-size: 0.875rem;
+  color: var(--ink-2);
+}
+/* El "/" es decoración: el texto alternativo vacío evita que un lector de pantalla lo anuncie.
+   La primera línea es el respaldo para navegadores que no entienden la segunda. */
+.note li + li::before {
+  content: "/";
+  content: "/" / "";
+  margin-inline: 0.75rem;
+  color: var(--ink-3);
+}
+@media (max-width: 30em) {
+  .note { flex-direction: column; gap: 0.15rem; }
+  .note li + li::before { display: none; }
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem 1.75rem;
+  margin-top: 2.25rem;
+}
+.btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 48px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+}
+.btn:active { transform: translateY(1px); }
+.btn.primary {
+  padding-inline: 1.5rem;
+  border-radius: var(--r);
+  background: var(--fill);
+  color: var(--on-fill);
+}
+.btn.primary:hover { background: var(--ink); color: var(--bg); }
+.btn.secondary {
+  padding-inline: 1.25rem;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  color: var(--ink);
+}
+.btn.secondary:hover { border-color: var(--accent); }
+
+/* ---------- Secciones ---------- */
+.section { padding-block: clamp(3rem, 7vw, 5.5rem); }
+.section h2 {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: clamp(1.5rem, 1.1rem + 1.4vw, 2.25rem);
+  line-height: 1.15;
+  letter-spacing: -0.035em;
+}
+.section-intro { max-width: var(--measure); margin-top: 1rem; color: var(--ink-2); }
+.module {
+  padding: 1.5rem;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--surface);
+}
+.tokens { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.tokens li {
+  padding: 0.2rem 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--surface-2);
+  font-family: var(--display);
+  font-size: 0.75rem;
+  color: var(--ink-2);
+}
+
+/* ---------- Perfil ---------- */
+.perfil-grid { display: grid; gap: 2rem 4rem; margin-top: 2rem; }
+@media (min-width: 56em) {
+  .perfil-grid { grid-template-columns: minmax(0, 7fr) minmax(0, 4fr); align-items: start; }
+}
+.prose p { max-width: var(--measure); color: var(--ink-2); }
+.prose p + p { margin-top: 1.1em; }
+.prose .lead {
+  font-size: clamp(1.1875rem, 1.05rem + 0.4vw, 1.3125rem);
+  line-height: 1.55;
+  color: var(--ink);
+}
+.spec { display: grid; gap: 1.5rem; }
+.spec dt {
+  margin-bottom: 0.6rem;
+  font-family: var(--display);
+  font-size: 0.8125rem;
+  color: var(--ink-3);
+}
+.spec .langs li { color: var(--ink-2); }
+
+/* ---------- Laboratorio: mosaico de módulos ---------- */
+.apps { display: grid; gap: 1rem; margin-top: 2rem; }
+@media (min-width: 56em) {
+  .apps { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .app:first-child { grid-column: span 2; grid-row: span 2; }
+}
+.app {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 1.5rem;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--surface);
+}
+.app:first-child {
+  padding: clamp(1.5rem, 3vw, 2.25rem);
+  background-image: radial-gradient(var(--dots) 1px, transparent 1px);
+  background-size: 18px 18px;
+}
+.app:nth-child(2) { background: var(--surface-2); }
+.app:nth-child(3) { background: var(--tint); }
+.app-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+}
+.app .name {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 1.375rem;
+  line-height: 1.2;
+  letter-spacing: -0.03em;
+}
+.app:first-child .name { font-size: clamp(1.5rem, 1.1rem + 1.4vw, 2.25rem); }
+.app .name a { color: var(--accent); text-underline-offset: 0.2em; }
+.app .host {
+  margin-top: 0.2rem;
+  font-family: var(--display);
+  font-size: 0.75rem;
+  color: var(--ink-3);
+  overflow-wrap: anywhere;
+}
+.app .desc { max-width: 58ch; color: var(--ink-2); }
+.app:first-child .desc { font-size: 1.125rem; line-height: 1.6; color: var(--ink); }
+.app .tokens { margin-top: auto; padding-top: 0.5rem; }
+.status {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.55rem;
+  border: 1px dashed var(--ink-3);
+  border-radius: var(--r);
+  font-family: var(--display);
+  font-size: 0.75rem;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.status[data-status="beta"] { border: 1px solid var(--accent); color: var(--accent); }
+.status[data-status="live"] {
+  border: 1px solid var(--accent);
+  background: var(--fill);
+  color: var(--on-fill);
+}
+
+/* ---------- Trayectoria: raíl ---------- */
+.track { display: grid; gap: 3rem; margin-top: 2rem; }
+.track h3 {
+  margin-bottom: 1.5rem;
+  font-family: var(--display);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--ink-3);
+}
+.rail {
+  display: grid;
+  gap: 2.25rem;
+  margin-left: 0.3rem;
+  padding-left: 1.75rem;
+  border-left: 1px solid var(--rail);
+}
+.rail > li { position: relative; }
+.rail > li::before {
+  content: "";
+  position: absolute;
+  left: calc(-1.75rem - 5.5px);
+  top: 0.35rem;
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid var(--ink-3);
+  border-radius: 2px;
+  background: var(--bg);
+}
+.rail > li.now::before { border-color: var(--accent); background: var(--fill); }
+.period { font-family: var(--display); font-size: 0.8125rem; color: var(--ink-3); }
+.now .period { color: var(--accent); }
+.job .role { margin-top: 0.25rem; font-weight: 600; font-size: 1.125rem; }
+.job .company { color: var(--ink-2); }
+.job .summary { max-width: var(--measure); margin-top: 0.5rem; color: var(--ink-2); }
+[data-group="before"] .rail { gap: 1.5rem; }
+[data-group="before"] .job .role { font-size: 1rem; }
+[data-group="before"] .job .summary { font-size: 0.9375rem; }
+.edu { display: grid; gap: 1rem; }
+.edu li { display: grid; gap: 0.15rem 2rem; }
+@media (min-width: 40em) {
+  .edu li { grid-template-columns: 8rem minmax(0, 1fr); }
+}
+.edu .degree { font-weight: 600; }
+.edu .school { display: block; color: var(--ink-2); }
+
+/* ---------- Contacto ---------- */
+.band {
+  padding: clamp(1.5rem, 5vw, 3.5rem);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--surface);
+}
+.contact .text {
+  max-width: 44ch;
+  margin-top: 1rem;
+  font-size: 1.1875rem;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+.contact .email {
+  display: inline-block;
+  margin-top: 1.75rem;
+  padding-block: 0.65rem;
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: clamp(1.375rem, 0.55rem + 4.1vw, 3.5rem);
+  line-height: 1.1;
+  letter-spacing: -0.04em;
+  color: var(--accent);
+  text-decoration: underline;
+  text-decoration-thickness: 0.06em;
+  text-underline-offset: 0.18em;
+  overflow-wrap: anywhere;
+  transition: color 0.15s;
+}
+.contact .email:hover { color: var(--ink); }
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 1.75rem;
+  margin-top: 1.5rem;
+  font-family: var(--display);
+  font-size: 0.875rem;
+}
+.links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  text-underline-offset: 0.35em;
+}
+.links a:hover { color: var(--accent); }
+
+/* ---------- Pie ---------- */
+.foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem 2rem;
+  padding-block: 1.5rem 2.5rem;
+  border-top: 1px solid var(--line);
+  font-family: var(--display);
+  font-size: 0.75rem;
+  color: var(--ink-3);
+}
+.foot p { display: flex; flex-wrap: wrap; gap: 0.25rem 1.5rem; }
+.foot a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--ink);
+}

@@ -1,0 +1,24 @@
+---
+import type { Lang, Messages } from "../i18n/types";
+
+interface Props {
+  lang: Lang;
+  t: Messages;
+}
+const { lang, t } = Astro.props;
+const other = lang === "es" ? "en" : "es";
+const year = new Date().getFullYear();
+---
+
+<footer class="foot">
+  <p>
+    <span>© {year} {t.footer.rights}</span>
+    <span>{t.footer.source}</span>
+  </p>
+  <a
+    href={t.site.switchHref}
+    lang={other}
+    hreflang={other}
+    aria-label={`${t.site.switchTo}, ${t.site.language}`}>{t.site.switchTo}</a
+  >
+</footer>

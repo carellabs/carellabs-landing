@@ -1,0 +1,23 @@
+---
+import type { Messages } from "../../i18n/types";
+
+interface Props {
+  t: Messages;
+}
+const { t } = Astro.props;
+---
+
+<section class="section contact" id="contacto" aria-labelledby="h-contacto">
+  <div class="band">
+    <h2 id="h-contacto">{t.contact.title}</h2>
+    <p class="text">{t.contact.text}</p>
+    <a class="email" href={`mailto:${t.contact.email}`}>{t.contact.email}</a>
+    <div class="links">
+      {
+        t.contact.links.map((l) => (
+          <a href={l.href} rel="me noopener" target="_blank">{l.label}</a>
+        ))
+      }
+    </div>
+  </div>
+</section>

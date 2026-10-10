@@ -1,0 +1,107 @@
+name: PR policy
+
+# Valida el título (commit convencional) y, para feat/fix, la referencia a una
+# issue; y etiqueta el PR con `type:*`. Lógica en .github/scripts/pr-policy.mjs.
+#
+# Seguridad (privilegio mínimo, dos jobs):
+# - `pr-policy` ejecuta el código del repositorio (el script, tal como llega en
+#   el PR) con un token de solo lectura. Es el check obligatorio.
+# - `label` es el único con permiso de escritura y NO hace checkout: no ejecuta
+#   nada del PR. Solo recibe la etiqueta del job anterior, y aun así la
+#   comprueba contra una lista cerrada antes de usarla.
+# - Evento `pull_request` (no `pull_request_target`): el código del PR nunca se
+#   ejecuta con un token de escritura de un fork.
+# - Título y cuerpo del PR son entrada no fiable: solo entran por `env:`,
+#   nunca se interpolan dentro de `run:`.
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions: {}
+
+# Ediciones seguidas del título/cuerpo: solo importa la última.
+concurrency:
+  group: "pr-policy-${{ github.event.pull_request.number }}"
+  cancel-in-progress: true
+
+jobs:
+  pr-policy:
+    name: pr-policy
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    # La etiqueta sale de la tabla del script, nunca del texto del usuario.
+    # Las outputs de un job se evalúan al terminar el job aunque un paso haya
+    # fallado (el script escribe la etiqueta y después sale con 1 si falta la
+    # issue), así que `label` la recibe también cuando la política falla.
+    outputs:
+      label: ${{ steps.policy.outputs.label }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          # Este job no instala dependencias: sin caché.
+          package-manager-cache: false
+
+      - name: Validar título y cuerpo del PR
+        id: policy
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: node .github/scripts/pr-policy.mjs
+
+  label:
+    name: label
+    needs: pr-policy
+    # Se salta en PR de Dependabot (ya llegan con `type:chore`) y en PR desde
+    # forks: en ambos casos GITHUB_TOKEN es de solo lectura y fallaría.
+    # `!cancelled()` hace que corra también cuando `pr-policy` falla por falta de
+    # issue (sin él, un job que depende de uno fallido se salta): el PR se
+    # etiqueta siempre que el título sea válido y haya etiqueta.
+    if: >-
+      ${{ !cancelled()
+      && needs.pr-policy.outputs.label != ''
+      && github.actor != 'dependabot[bot]'
+      && github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: write
+    steps:
+      # Sin checkout: este job tiene un token de escritura y no ejecuta código del PR.
+      - name: Etiquetar el PR con type:*
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          LABEL: ${{ needs.pr-policy.outputs.label }}
+        run: |
+          set -euo pipefail
+
+          # Lista cerrada: solo se aplican las etiquetas que define pr-policy.mjs.
+          case "$LABEL" in
+            type:feature|type:bug|type:docs|type:refactor|type:chore|type:breaking-change) ;;
+            *) echo "::error::Etiqueta no permitida." >&2; exit 1 ;;
+          esac
+
+          api="repos/${GH_REPO}/issues/${PR_NUMBER}/labels"
+
+          # Etiquetas type:* actuales (nombre y nombre codificado para la URL).
+          current="$(gh api "$api" --paginate \
+            --jq '.[] | select(.name | startswith("type:")) | [.name, (.name | @uri)] | @tsv')"
+
+          # Quita las type:* que no son la derivada del título.
+          while IFS=$'\t' read -r name encoded; do
+            [ -n "$name" ] || continue
+            if [ "$name" != "$LABEL" ]; then
+              gh api -X DELETE "${api}/${encoded}" --silent
+            fi
+          done <<< "$current"
+
+          # Añade la derivada (idempotente si ya estaba).
+          gh api -X POST "$api" -f "labels[]=${LABEL}" --silent

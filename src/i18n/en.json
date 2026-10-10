@@ -1,0 +1,126 @@
+{
+  "meta": {
+    "title": "Fabrizio Carella · Carellabs",
+    "description": "Full Stack Developer in Madrid. I design and evolve systems that connect software, data and operations in real time."
+  },
+  "site": {
+    "brand": "Carellabs",
+    "language": "Language",
+    "switchTo": "ES",
+    "switchHref": "/"
+  },
+  "a11y": {
+    "skip": "Skip to content"
+  },
+  "nav": {
+    "label": "Sections",
+    "about": "Profile",
+    "lab": "Lab",
+    "experience": "Experience",
+    "contact": "Contact"
+  },
+  "hero": {
+    "name": "Fabrizio Carella",
+    "role": "Full Stack Developer · Madrid",
+    "headline": "I design and evolve systems that connect software, data and operations in real time.",
+    "focusLabel": "Specialties",
+    "note": ["Distributed backend", "ERP integrations", "Offline-first"],
+    "cta": "Get in touch",
+    "ctaSecondary": "See projects"
+  },
+  "about": {
+    "title": "Profile",
+    "p1": "I work on software that keeps real-world operations running: not just interfaces, but the platforms that let processes, data and integrations work reliably.",
+    "p2": "My focus is backend, real-time communication, distributed services and enterprise integrations. I take on frontend work when it is part of how the whole system behaves. I'm drawn to environments with real complexity: asynchronous processing, high data volumes, synchronisation between services, and software that has to operate under demanding conditions.",
+    "p3": "Before software I worked in technical and logistics roles, drawing plans and designing storage systems. That shaped how I approach engineering: I think in structures, processes and system behaviour rather than isolated features. How components interact, how they fail, how they scale and how they evolve.",
+    "stackTitle": "Usual stack",
+    "stack": ["Node.js", "TypeScript", "React", "PostgreSQL", "Docker", "AWS", "Elasticsearch", "Vue.js"],
+    "languagesTitle": "Languages",
+    "languages": ["Spanish (native)", "English (professional)", "Galician (professional)"]
+  },
+  "lab": {
+    "title": "Lab",
+    "intro": "Side projects where I put what I learn into practice. Each one will live on its own subdomain once it's ready.",
+    "status": {
+      "in-progress": "In development",
+      "beta": "Beta",
+      "live": "Live"
+    },
+    "stackLabel": "Stack"
+  },
+  "experience": {
+    "title": "Experience",
+    "groups": {
+      "software": "Software development",
+      "before": "Before software"
+    },
+    "items": [
+      {
+        "group": "software",
+        "company": "AMURA IT",
+        "role": "Full Stack Developer",
+        "period": "Nov 2023 - Present",
+        "summary": "Architecture and development of distributed backend services and APIs for real-time industrial operations: ERP integrations, asynchronous processing, sync between connected and offline environments, desktop tools integrating industrial hardware."
+      },
+      {
+        "group": "software",
+        "company": "Global Alumni",
+        "role": "Full Stack Web Developer",
+        "period": "Apr 2022 - Nov 2023",
+        "summary": "Development, deployment and maintenance of Node.js, React and Python applications on DynamoDB and MySQL. Docker containers deployed on AWS (ECR, ECS, CloudFront)."
+      },
+      {
+        "group": "software",
+        "company": "OcasionPlus",
+        "role": "Full Stack Web Developer",
+        "period": "Feb - Apr 2022",
+        "summary": "Production web project for a vehicle marketplace: React, Redux, Next.js, Express and MongoDB."
+      },
+      {
+        "group": "software",
+        "company": "The Bridge",
+        "role": "Teacher Assistant · Full Stack",
+        "period": "Nov 2021 - Feb 2022",
+        "summary": "Teaching support at the web development bootcamp where I trained."
+      },
+      {
+        "group": "before",
+        "company": "Jungheinrich España",
+        "role": "Logistics systems designer & assembly coordinator",
+        "period": "Oct 2018 - Nov 2020",
+        "summary": "Technical design of storage systems: calculations, quotes and CAD drawings to standard. Coordination of on-site assembly crews and incidents."
+      },
+      {
+        "group": "before",
+        "company": "Technical offices",
+        "role": "Draughtsman",
+        "period": "2014 - 2017",
+        "summary": "Architectural and services drawings in AutoCAD for building, infrastructure and international zoo projects (ALZA2, Applus Norcontrol, The Logical Zoo)."
+      }
+    ],
+    "educationTitle": "Education",
+    "education": [
+      { "school": "The Bridge | Digital Talent Accelerator", "degree": "Full Stack Web Development", "year": "2021" },
+      { "school": "IES As Mariñas", "degree": "Higher Technician in Building Projects", "year": "2012 - 2014" }
+    ]
+  },
+  "contact": {
+    "title": "Contact",
+    "text": "If you have a system that needs to evolve, or a project where reliability matters, let's talk.",
+    "email": "hola@carellabs.com",
+    "links": [
+      { "label": "LinkedIn", "href": "https://www.linkedin.com/in/fabriziocarella" },
+      { "label": "GitHub", "href": "https://github.com/carellabs" }
+    ]
+  },
+  "footer": {
+    "rights": "Fabrizio Carella. Made in Madrid.",
+    "source": "This site is static, with no cookies or trackers."
+  },
+  "notFound": {
+    "title": "404 · Carellabs",
+    "description": "Page not found",
+    "heading": "This page doesn't exist.",
+    "home": "Home (EN)"
+  }
+}

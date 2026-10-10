@@ -1,0 +1,29 @@
+---
+import type { Lang, Messages } from "../i18n/types";
+import SiteHeader from "./SiteHeader.astro";
+import SiteFooter from "./SiteFooter.astro";
+import Hero from "./sections/Hero.astro";
+import Profile from "./sections/Profile.astro";
+import Lab from "./sections/Lab.astro";
+import Experience from "./sections/Experience.astro";
+import Contact from "./sections/Contact.astro";
+
+interface Props {
+  lang: Lang;
+  t: Messages;
+}
+const { lang, t } = Astro.props;
+---
+
+<a class="skip" href="#main">{t.a11y.skip}</a>
+<div class="wrap">
+  <SiteHeader lang={lang} t={t} />
+  <main id="main" tabindex="-1">
+    <Hero t={t} />
+    <Profile t={t} />
+    <Lab lang={lang} t={t} />
+    <Experience t={t} />
+    <Contact t={t} />
+  </main>
+  <SiteFooter lang={lang} t={t} />
+</div>

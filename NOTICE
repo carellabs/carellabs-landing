@@ -1,0 +1,12 @@
+Carellabs
+Copyright (c) 2026 Fabrizio Carella
+
+La licencia MIT (ver LICENSE) cubre el código fuente de este repositorio.
+
+No cubre, y quedan con todos los derechos reservados:
+
+- los textos del portfolio y del CV (src/i18n/*.json, src/data/apps.json),
+- las imágenes de previsualización (public/og-*.png),
+- el nombre y la marca "Carellabs" y su símbolo (public/favicon.svg).
+
+Puedes reutilizar el código; no publiques estos contenidos ni la marca como propios.

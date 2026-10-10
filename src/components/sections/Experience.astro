@@ -1,0 +1,53 @@
+---
+import type { Messages } from "../../i18n/types";
+
+interface Props {
+  t: Messages;
+}
+const { t } = Astro.props;
+
+const groups = ["software", "before"] as const;
+const items = t.experience.items;
+---
+
+<section class="section" id="trayectoria" aria-labelledby="h-tray">
+  <h2 id="h-tray">{t.experience.title}</h2>
+  <div class="track">
+    {
+      groups.map((group) => (
+        <div data-group={group}>
+          <h3>{t.experience.groups[group]}</h3>
+          <ol class="rail" role="list">
+            {items
+              .filter((job) => job.group === group)
+              .map((job, i) => (
+                <li class:list={["job", { now: group === "software" && i === 0 }]}>
+                  <p class="period">{job.period}</p>
+                  <p class="role">{job.role}</p>
+                  <p class="company">{job.company}</p>
+                  <p class="summary">{job.summary}</p>
+                </li>
+              ))}
+          </ol>
+        </div>
+      ))
+    }
+
+    <div>
+      <h3>{t.experience.educationTitle}</h3>
+      <ul class="edu" role="list">
+        {
+          t.experience.education.map((e) => (
+            <li>
+              <p class="period">{e.year}</p>
+              <p>
+                <span class="degree">{e.degree}</span>
+                <span class="school">{e.school}</span>
+              </p>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+  </div>
+</section>

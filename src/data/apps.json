@@ -1,0 +1,35 @@
+[
+  {
+    "id": "finapp",
+    "name": "FinApp",
+    "status": "in-progress",
+    "url": "https://finanzas.carellabs.com",
+    "stack": ["Node.js", "TypeScript", "React", "PostgreSQL"],
+    "description": {
+      "es": "Finanzas personales con un modelo de datos granular: gastos clasificados en dos ejes, mes de cobertura independiente de la fecha y transferencias internas excluidas de los totales.",
+      "en": "Personal finance built on a granular data model: expenses classified on two axes, coverage month decoupled from transaction date, internal transfers excluded from totals."
+    }
+  },
+  {
+    "id": "barber",
+    "name": "Barber",
+    "status": "in-progress",
+    "url": "https://barberia.carellabs.com",
+    "stack": ["Node.js", "TypeScript", "React", "PostgreSQL", "Google Calendar"],
+    "description": {
+      "es": "Gestión de citas multi-tenant para barberías. Motor de franjas horarias con lógica transaccional y sincronización con Google Calendar.",
+      "en": "Multi-tenant appointment management for barbershops. Slot engine with transactional logic and Google Calendar sync."
+    }
+  },
+  {
+    "id": "avrilcloset",
+    "name": "AvrilCloset",
+    "status": "in-progress",
+    "url": "https://closet.carellabs.com",
+    "stack": ["TypeScript", "React"],
+    "description": {
+      "es": "Armario digital: inventario de prendas y combinaciones.",
+      "en": "Digital wardrobe: garment inventory and outfit combinations."
+    }
+  }
+]

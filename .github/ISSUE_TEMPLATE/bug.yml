@@ -1,0 +1,59 @@
+name: Error
+description: Informar de algo que falla o se ve mal en la web
+title: "fix: "
+labels: ["type:bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Los cambios de tipo `fix` necesitan una issue. El PR que lo corrija se titula como un
+        commit convencional (`fix(scope): descripción`) y cierra esta issue con `Closes #N`
+        en su cuerpo.
+
+        Este repositorio es público: no incluyas datos personales ni credenciales.
+  - type: textarea
+    id: que-pasa
+    attributes:
+      label: Qué ocurre
+      description: Describe el fallo con precisión.
+    validations:
+      required: true
+  - type: textarea
+    id: pasos
+    attributes:
+      label: Pasos para reproducirlo
+      placeholder: |
+        1. Abre ...
+        2. Haz ...
+        3. Observa ...
+    validations:
+      required: true
+  - type: textarea
+    id: esperado
+    attributes:
+      label: Qué esperabas que ocurriera
+    validations:
+      required: true
+  - type: dropdown
+    id: idioma
+    attributes:
+      label: Versión de la página
+      options:
+        - Español (/)
+        - English (/en/)
+        - Las dos
+        - Página 404
+    validations:
+      required: true
+  - type: input
+    id: entorno
+    attributes:
+      label: Navegador, sistema y ancho de pantalla
+      description: Por ejemplo, Firefox 130 en Android, 390 px de ancho.
+    validations:
+      required: true
+  - type: textarea
+    id: capturas
+    attributes:
+      label: Capturas o grabación
+      description: Arrastra aquí las imágenes. Opcional, pero ayuda mucho en fallos visuales.

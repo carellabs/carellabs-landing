@@ -1,0 +1,20 @@
+---
+import type { Messages } from "../../i18n/types";
+
+interface Props {
+  t: Messages;
+}
+const { t } = Astro.props;
+---
+
+<section class="hero" aria-labelledby="hero-title">
+  <p class="who"><strong>{t.hero.name}</strong><span>{t.hero.role}</span></p>
+  <h1 id="hero-title">{t.hero.headline}</h1>
+  <ul class="note" role="list" aria-label={t.hero.focusLabel}>
+    {t.hero.note.map((item) => <li>{item}</li>)}
+  </ul>
+  <div class="actions">
+    <a class="btn primary" href="#contacto">{t.hero.cta}</a>
+    <a class="btn secondary" href="#lab">{t.hero.ctaSecondary}</a>
+  </div>
+</section>

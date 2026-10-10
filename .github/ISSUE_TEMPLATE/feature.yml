@@ -1,0 +1,55 @@
+name: Funcionalidad
+description: Proponer una novedad o un cambio visible en la web
+title: "feat: "
+labels: ["type:feature"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Los cambios de tipo `feat` necesitan una issue. El PR que lo implemente se titula
+        como un commit convencional (`feat(scope): descripción`) y cierra esta issue con
+        `Closes #N` en su cuerpo.
+
+        Este repositorio es público: no incluyas datos personales ni credenciales.
+  - type: textarea
+    id: necesidad
+    attributes:
+      label: Qué necesidad o problema resuelve
+      description: Contexto y motivo. Qué no se puede hacer hoy o qué resulta incómodo.
+    validations:
+      required: true
+  - type: textarea
+    id: propuesta
+    attributes:
+      label: Propuesta
+      description: Qué cambiarías y cómo debería verse o comportarse. Añade bocetos o capturas si ayudan.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Área
+      options:
+        - Contenido o textos
+        - Diseño y estilos
+        - Accesibilidad
+        - SEO y metadatos
+        - Rendimiento
+        - Laboratorio (apps.json)
+        - CI, herramientas o despliegue
+        - Otra
+    validations:
+      required: true
+  - type: textarea
+    id: alternativas
+    attributes:
+      label: Alternativas consideradas
+      description: Otras formas de resolverlo y por qué las descartas.
+  - type: checkboxes
+    id: condiciones
+    attributes:
+      label: Condiciones de la web
+      description: Se comprueban de nuevo en el PR.
+      options:
+        - label: Se actualizan los dos idiomas (ES y EN) en el mismo cambio.
+        - label: No añade cookies, rastreadores ni scripts de terceros.

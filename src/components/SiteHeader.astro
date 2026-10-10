@@ -1,0 +1,26 @@
+---
+import type { Lang, Messages } from "../i18n/types";
+
+interface Props {
+  lang: Lang;
+  t: Messages;
+}
+const { lang, t } = Astro.props;
+const other = lang === "es" ? "en" : "es";
+---
+
+<header class="topbar">
+  <a class="brand" href={lang === "es" ? "/" : "/en/"}>{t.site.brand}</a>
+  <nav class="nav" aria-label={t.nav.label}>
+    <a href="#perfil">{t.nav.about}</a>
+    <a href="#lab">{t.nav.lab}</a>
+    <a href="#trayectoria">{t.nav.experience}</a>
+    <a href="#contacto">{t.nav.contact}</a>
+    <a
+      href={t.site.switchHref}
+      lang={other}
+      hreflang={other}
+      aria-label={`${t.site.switchTo}, ${t.site.language}`}>{t.site.switchTo}</a
+    >
+  </nav>
+</header>

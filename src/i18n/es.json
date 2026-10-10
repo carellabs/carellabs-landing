@@ -1,0 +1,126 @@
+{
+  "meta": {
+    "title": "Fabrizio Carella · Carellabs",
+    "description": "Full Stack Developer en Madrid. Diseño y evoluciono sistemas que conectan software, datos y operaciones en tiempo real."
+  },
+  "site": {
+    "brand": "Carellabs",
+    "language": "Idioma",
+    "switchTo": "EN",
+    "switchHref": "/en/"
+  },
+  "a11y": {
+    "skip": "Saltar al contenido"
+  },
+  "nav": {
+    "label": "Secciones",
+    "about": "Perfil",
+    "lab": "Laboratorio",
+    "experience": "Trayectoria",
+    "contact": "Contacto"
+  },
+  "hero": {
+    "name": "Fabrizio Carella",
+    "role": "Full Stack Developer · Madrid",
+    "headline": "Diseño y evoluciono sistemas que conectan software, datos y operaciones en tiempo real.",
+    "focusLabel": "Especialidades",
+    "note": ["Backend distribuido", "Integraciones ERP", "Offline-first"],
+    "cta": "Escríbeme",
+    "ctaSecondary": "Ver proyectos"
+  },
+  "about": {
+    "title": "Perfil",
+    "p1": "Trabajo en sistemas de software que sostienen operaciones del mundo real: no solo interfaces, sino las plataformas que permiten que procesos, datos e integraciones funcionen de forma fiable.",
+    "p2": "Mi experiencia se centra en backend, comunicación en tiempo real, servicios distribuidos e integraciones empresariales. Participo en frontend cuando forma parte del comportamiento global del sistema. Me interesan los entornos con complejidad real: procesamiento asíncrono, alto volumen de datos, sincronización entre servicios y software que debe operar bajo condiciones exigentes.",
+    "p3": "Antes de dedicarme al software trabajé en entornos técnicos y logísticos, dibujando planos y diseñando sistemas de almacenaje. Eso marcó mi forma de abordar la ingeniería: pienso en estructuras, procesos y comportamiento de los sistemas, no en funcionalidades aisladas. Cómo interactúan los componentes, cómo fallan, cómo escalan y cómo evolucionan.",
+    "stackTitle": "Stack habitual",
+    "stack": ["Node.js", "TypeScript", "React", "PostgreSQL", "Docker", "AWS", "Elasticsearch", "Vue.js"],
+    "languagesTitle": "Idiomas",
+    "languages": ["Español (nativo)", "Inglés (profesional)", "Gallego (profesional)"]
+  },
+  "lab": {
+    "title": "Laboratorio",
+    "intro": "Proyectos propios en los que aplico lo que aprendo. Cada uno vivirá en su propio subdominio cuando esté listo.",
+    "status": {
+      "in-progress": "En desarrollo",
+      "beta": "Beta",
+      "live": "Disponible"
+    },
+    "stackLabel": "Stack"
+  },
+  "experience": {
+    "title": "Trayectoria",
+    "groups": {
+      "software": "Desarrollo de software",
+      "before": "Antes del software"
+    },
+    "items": [
+      {
+        "group": "software",
+        "company": "AMURA IT",
+        "role": "Full Stack Developer",
+        "period": "Nov 2023 - Actualidad",
+        "summary": "Arquitectura y desarrollo de servicios backend distribuidos y APIs para operaciones industriales en tiempo real: integraciones ERP, procesamiento asíncrono, sincronización entre entornos conectados y offline, herramientas de escritorio con integración de hardware industrial."
+      },
+      {
+        "group": "software",
+        "company": "Global Alumni",
+        "role": "Full Stack Web Developer",
+        "period": "Abr 2022 - Nov 2023",
+        "summary": "Desarrollo, despliegue y mantenimiento de aplicaciones Node.js, React y Python sobre DynamoDB y MySQL. Contenedores con Docker y despliegue en AWS (ECR, ECS, CloudFront)."
+      },
+      {
+        "group": "software",
+        "company": "OcasionPlus",
+        "role": "Full Stack Web Developer",
+        "period": "Feb - Abr 2022",
+        "summary": "Proyecto web en producción para compraventa de vehículos: React, Redux, Next.js, Express y MongoDB."
+      },
+      {
+        "group": "software",
+        "company": "The Bridge",
+        "role": "Teacher Assistant · Full Stack",
+        "period": "Nov 2021 - Feb 2022",
+        "summary": "Apoyo docente en el bootcamp de desarrollo web donde me formé."
+      },
+      {
+        "group": "before",
+        "company": "Jungheinrich España",
+        "role": "Proyectista y coordinador de sistemas logísticos",
+        "period": "Oct 2018 - Nov 2020",
+        "summary": "Diseño técnico de sistemas de almacenaje: cálculos, presupuestos y planos CAD según normativa. Coordinación de montajes, cuadrillas e incidencias en obra."
+      },
+      {
+        "group": "before",
+        "company": "Oficinas técnicas",
+        "role": "Delineante",
+        "period": "2014 - 2017",
+        "summary": "Planos de arquitectura e instalaciones en AutoCAD para proyectos de edificación, infraestructuras y recintos zoológicos internacionales (ALZA2, Applus Norcontrol, The Logical Zoo)."
+      }
+    ],
+    "educationTitle": "Formación",
+    "education": [
+      { "school": "The Bridge | Digital Talent Accelerator", "degree": "Full Stack Web Development", "year": "2021" },
+      { "school": "IES As Mariñas", "degree": "Técnico Superior en Proyectos de Edificación", "year": "2012 - 2014" }
+    ]
+  },
+  "contact": {
+    "title": "Contacto",
+    "text": "Si tienes un sistema que necesita evolucionar, o un proyecto donde la fiabilidad importa, hablemos.",
+    "email": "hola@carellabs.com",
+    "links": [
+      { "label": "LinkedIn", "href": "https://www.linkedin.com/in/fabriziocarella" },
+      { "label": "GitHub", "href": "https://github.com/carellabs" }
+    ]
+  },
+  "footer": {
+    "rights": "Fabrizio Carella. Hecho en Madrid.",
+    "source": "Esta web es estática, sin cookies ni rastreadores."
+  },
+  "notFound": {
+    "title": "404 · Carellabs",
+    "description": "Página no encontrada",
+    "heading": "Esta página no existe.",
+    "home": "Volver al inicio"
+  }
+}

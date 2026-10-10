@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="{{lang}}">
+<head>
+<meta charset="utf-8">
+<style>
+@font-face{
+  font-family:"JetBrains Mono";
+  src:url(data:font/woff2;base64,{{font}}) format("woff2");
+  font-weight:100 800;
+  font-display:block;
+}
+:root{
+  --bg:#0e0f11;
+  --line:#2a2d32;
+  --ink:#ededea;
+  --ink-2:#b3b6ba;
+  --accent:#f2b13a;
+}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;width:1200px;height:630px;overflow:hidden}
+body{
+  display:flex;flex-direction:column;justify-content:space-between;
+  padding:64px 72px;
+  background-color:var(--bg);
+  background-image:radial-gradient(rgba(237,237,234,.06) 1px, transparent 1px);
+  background-size:24px 24px;
+  color:var(--ink);
+  font-family:"JetBrains Mono", monospace;
+}
+.top{display:flex;align-items:center;gap:20px}
+.mark{width:56px;height:56px;flex:none}
+.mark svg{display:block;width:100%;height:100%}
+.brand{font-weight:800;font-size:30px;letter-spacing:-.03em}
+h1{
+  margin:0;max-width:1040px;
+  font-weight:700;font-size:56px;line-height:1.16;letter-spacing:-.035em;
+  text-wrap:balance;
+}
+.bottom{display:flex;align-items:flex-end;justify-content:space-between;gap:32px;padding-top:28px;border-top:1px solid var(--line)}
+.who{display:flex;flex-direction:column;gap:6px}
+.name{font-weight:700;font-size:28px;letter-spacing:-.02em}
+.role{font-size:22px;color:var(--ink-2)}
+.domain{font-weight:700;font-size:26px;color:var(--accent);letter-spacing:-.02em}
+</style>
+</head>
+<body>
+  <div class="top">
+    <div class="mark">{{mark}}</div>
+    <div class="brand">{{brand}}</div>
+  </div>
+  <h1>{{headline}}</h1>
+  <div class="bottom">
+    <div class="who">
+      <div class="name">{{name}}</div>
+      <div class="role">{{role}}</div>
+    </div>
+    <div class="domain">carellabs.com</div>
+  </div>
+</body>
+</html>

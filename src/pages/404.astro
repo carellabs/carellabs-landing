@@ -1,0 +1,24 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import es from "../i18n/es.json";
+import en from "../i18n/en.json";
+
+// Una sola 404 para los dos idiomas: el documento y el mensaje principal van en español, y
+// debajo la línea y el enlace en inglés. El título y la descripción salen del español porque el
+// documento lo es; los de en.json existen para que ambos JSON tengan las mismas claves.
+---
+<BaseLayout lang="es" title={es.notFound.title} description={es.notFound.description} noindex>
+  <div class="wrap">
+    <main>
+      <section class="hero">
+        <p class="who"><strong>404</strong></p>
+        <h1>{es.notFound.heading}</h1>
+        <p class="section-intro" lang="en">{en.notFound.heading}</p>
+        <div class="actions">
+          <a class="btn primary" href="/">{es.notFound.home}</a>
+          <a class="btn secondary" href="/en/" lang="en" hreflang="en">{en.notFound.home}</a>
+        </div>
+      </section>
+    </main>
+  </div>
+</BaseLayout>

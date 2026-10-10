@@ -1,0 +1,33 @@
+---
+import type { Messages } from "../../i18n/types";
+
+interface Props {
+  t: Messages;
+}
+const { t } = Astro.props;
+---
+
+<section class="section" id="perfil" aria-labelledby="h-perfil">
+  <h2 id="h-perfil">{t.about.title}</h2>
+  <div class="perfil-grid">
+    <div class="prose">
+      <p class="lead">{t.about.p1}</p>
+      <p>{t.about.p2}</p>
+      <p>{t.about.p3}</p>
+    </div>
+    <dl class="spec module">
+      <div>
+        <dt>{t.about.stackTitle}</dt>
+        <dd>
+          <ul class="tokens" role="list">{t.about.stack.map((s) => <li>{s}</li>)}</ul>
+        </dd>
+      </div>
+      <div>
+        <dt>{t.about.languagesTitle}</dt>
+        <dd>
+          <ul class="langs" role="list">{t.about.languages.map((s) => <li>{s}</li>)}</ul>
+        </dd>
+      </div>
+    </dl>
+  </div>
+</section>

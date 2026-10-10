@@ -4,7 +4,7 @@ Landing / portfolio de carellabs.com. Astro, estático, bilingüe (ES en `/`, EN
 
 ## Arrancar en local
 
-Requiere Node `>=22.19.0`. La versión exacta del proyecto está en `.nvmrc` (la usan también el CI y Cloudflare Pages).
+Requiere Node `>=22.19.0`. La versión exacta del proyecto está en `.nvmrc` (la usan también el CI y Cloudflare Workers).
 
 ```bash
 npm install
@@ -25,7 +25,8 @@ npm run preview    # sirve dist/ en local
 | Una sección | `src/components/sections/` (`Hero`, `Profile`, `Lab`, `Experience`, `Contact`) |
 | Cabecera y pie | `src/components/SiteHeader.astro`, `src/components/SiteFooter.astro` |
 | `<head>`, SEO, fuente, esquema de color | `src/layouts/BaseLayout.astro` |
-| Cabeceras de seguridad (Cloudflare Pages) | `public/_headers` |
+| Cabeceras de seguridad (Cloudflare las aplica a todos los assets) | `public/_headers` |
+| Despliegue en Cloudflare Workers (assets estáticos, 404, vistas previas) | `wrangler.jsonc` |
 | Imágenes de previsualización en redes (`og:image`) | `scripts/og/template.html`; se generan con `npm run og` en `public/og-{es,en}.png` |
 
 La fuente (JetBrains Mono) se aloja en la propia web con `@fontsource-variable/jetbrains-mono`: no se carga nada de Google Fonts y la CSP solo admite `font-src 'self'`.
@@ -91,12 +92,13 @@ La issue es obligatoria **solo** para `feat` y `fix` (con `Closes #N` en el cuer
 - [x] Enlaces de GitHub apuntando a la cuenta real: `https://github.com/carellabs` (`es.json` y `en.json`)
 - [ ] Confirmar el email de contacto (`hola@carellabs.com` necesita Email Routing en Cloudflare)
 - [x] Imagen de previsualización en redes: `public/og-es.png` y `public/og-en.png` (1200×630, una por idioma con su titular). Se regeneran con `npm run og` si cambian los textos del hero
-- [ ] Configurar GitHub (repo, ruleset, etiquetas, seguridad) siguiendo [`github-setup.md`](.claude/skills/carellabs-github/references/github-setup.md)
+- [x] Configurar GitHub (repo, ruleset, etiquetas, seguridad) siguiendo [`github-setup.md`](.claude/skills/carellabs-github/references/github-setup.md)
+- [ ] Publicar en Cloudflare Workers: fase 1 (`*.workers.dev`) y fase 2 (`carellabs.com`), apartado 6 de la guía
 - [x] Propietario en GitHub: cuenta personal `carellabs` (variable `OWNER` de la guía)
 
 ## Despliegue
 
-Cloudflare Pages conectado al repo de GitHub (integración Git, rama de producción `main`, una vista previa por PR). Build command: `npm run build`. Output: `dist`. Pasos en el apartado 6 de la [guía de configuración](.claude/skills/carellabs-github/references/github-setup.md), y las comprobaciones posteriores (cabeceras reales, CSP, correo sin ofuscar) en su apartado 7.
+Cloudflare Workers con la integración Git (Workers Builds): la web se publica como assets estáticos de un Worker sin código, configurado en `wrangler.jsonc` (`dist/`, 404 propia, una vista previa por PR, sin telemetría). Build command: `npm run build`. Deploy command: `npx wrangler deploy`. Se hace en dos fases: primero solo en `*.workers.dev`, para comprobar cabeceras y CSP en Cloudflare, y después con el dominio `carellabs.com` en `wrangler.jsonc`. Pasos en el apartado 6 de la [guía de configuración](.claude/skills/carellabs-github/references/github-setup.md) y comprobaciones en su apartado 7.
 
 ## Seguridad
 

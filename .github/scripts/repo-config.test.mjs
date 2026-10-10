@@ -479,6 +479,12 @@ describe("wrangler.jsonc: Cloudflare Workers con solo assets estáticos", () => 
     assert.equal(config().send_metrics, false);
   });
 
+  test("producción se sirve en carellabs.com (Custom Domain) y no en workers.dev", () => {
+    const c = config();
+    assert.deepEqual(c.routes, [{ pattern: "carellabs.com", custom_domain: true }]);
+    assert.equal(c.workers_dev, false);
+  });
+
   test("cada rama de PR tiene su URL de vista previa", () => {
     assert.equal(config().preview_urls, true);
   });

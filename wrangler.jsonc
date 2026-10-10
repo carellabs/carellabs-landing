@@ -9,9 +9,11 @@
     "not_found_handling": "404-page",
     "html_handling": "auto-trailing-slash"
   },
-  // Fase 1: la web se publica solo en su URL *.workers.dev para comprobarla en
-  // Cloudflare. El dominio carellabs.com se añade aquí (routes) en un PR aparte.
-  "workers_dev": true,
+  // Producción en el dominio propio (Custom Domain: Cloudflare crea el registro DNS).
+  // La URL *.workers.dev de producción queda desactivada; las vistas previas de las
+  // ramas siguen en workers.dev porque preview_urls se declara aparte.
+  "routes": [{ "pattern": "carellabs.com", "custom_domain": true }],
+  "workers_dev": false,
   "preview_urls": true,
   // Sin telemetría de wrangler, coherente con «sin rastreadores».
   "send_metrics": false

@@ -70,3 +70,8 @@ test("the OG images were rendered from the current hero texts (run `npm run og` 
     });
   }
 });
+
+test("the build publishes /.well-known/security.txt", () => {
+  const txt = readFileSync("dist/.well-known/security.txt", "utf8");
+  expect(txt).toContain("Contact: mailto:security@carellabs.com");
+});

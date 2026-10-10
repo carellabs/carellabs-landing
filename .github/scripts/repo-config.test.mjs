@@ -355,9 +355,9 @@ describe("ficheros del repositorio", () => {
     assert.match(licencia, /Copyright \(c\) 2026 Fabrizio Carella/);
   });
 
-  test("SECURITY.md indica el correo y desaconseja las issues públicas", () => {
+  test("SECURITY.md indica el correo de seguridad y desaconseja las issues públicas", () => {
     const s = read("SECURITY.md");
-    assert.match(s, /hola@carellabs\.com/);
+    assert.match(s, /security@carellabs\.com/);
     assert.match(s, /no abras una issue pública/i);
   });
 });
@@ -479,13 +479,61 @@ describe("wrangler.jsonc: Cloudflare Workers con solo assets estáticos", () => 
     assert.equal(config().send_metrics, false);
   });
 
+  test("producción se sirve en carellabs.com (Custom Domain) y no en workers.dev", () => {
+    const c = config();
+    assert.deepEqual(c.routes, [{ pattern: "carellabs.com", custom_domain: true }]);
+    assert.equal(c.workers_dev, false);
+  });
+
   test("cada rama de PR tiene su URL de vista previa", () => {
     assert.equal(config().preview_urls, true);
+  });
+
+  test("las ramas de PR pueden crear su Preview (`wrangler preview` exige el bloque, aunque esté vacío)", () => {
+    // Vacío: sin bindings ni variables, la Preview solo sirve los assets de su rama.
+    assert.deepEqual(config().previews, {});
   });
 
   test("wrangler está en devDependencies (el despliegue usa la versión del lockfile, no la última)", () => {
     const pkg = JSON.parse(read("package.json"));
     assert.ok(pkg.devDependencies?.wrangler, "falta wrangler en devDependencies");
     assert.equal(pkg.dependencies?.wrangler, undefined, "wrangler no debe ir en dependencies");
+  });
+});
+
+describe("public/.well-known/security.txt (RFC 9116)", () => {
+  const fields = () => {
+    const out = {};
+    for (const line of read("public/.well-known/security.txt").split("\n")) {
+      const m = /^([A-Za-z-]+):\s*(.+)$/.exec(line.trim());
+      if (m) (out[m[1].toLowerCase()] ??= []).push(m[2]);
+    }
+    return out;
+  };
+
+  test("da como contacto el correo de seguridad y el reporte privado de GitHub", () => {
+    const f = fields();
+    assert.ok(f.contact?.includes("mailto:security@carellabs.com"), "falta Contact: mailto:security@carellabs.com");
+    assert.ok(
+      f.contact?.includes("https://github.com/carellabs/carellabs-landing/security/advisories/new"),
+      "falta el reporte privado de GitHub como Contact",
+    );
+  });
+
+  test("caduca en el futuro y a menos de un año (la RFC lo recomienda; al caducar, este test obliga a renovarlo)", () => {
+    const expires = fields().expires;
+    assert.equal(expires?.length, 1, "Expires debe aparecer una sola vez");
+    const date = new Date(expires[0]);
+    assert.ok(!Number.isNaN(date.getTime()), "Expires no es una fecha ISO 8601 válida");
+    const days = (date.getTime() - Date.now()) / 86_400_000;
+    assert.ok(days > 0, "security.txt ha caducado: renueva Expires");
+    assert.ok(days <= 366, "Expires a más de un año vista");
+  });
+
+  test("declara su URL canónica, los idiomas y la política", () => {
+    const f = fields();
+    assert.deepEqual(f.canonical, ["https://carellabs.com/.well-known/security.txt"]);
+    assert.match(f["preferred-languages"]?.[0] ?? "", /\bes\b/);
+    assert.deepEqual(f.policy, ["https://github.com/carellabs/carellabs-landing/blob/main/SECURITY.md"]);
   });
 });

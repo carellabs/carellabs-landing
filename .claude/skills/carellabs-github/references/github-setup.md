@@ -1,6 +1,6 @@
 # Configuración de GitHub de `carellabs-landing` (capa 1)
 
-> **Pasos 0 a 4 ejecutados contra el repositorio real el 10-oct-2026, con todas sus comprobaciones como se esperaba (ver "Verificado en la primera ejecución", al final). Los pasos 6 y 7 (Cloudflare Workers) siguen sin ejecutar.**
+> **Pasos 0 a 4 ejecutados contra el repositorio real el 10-oct-2026, y los pasos 6 y 7 (Cloudflare Workers, fases 1 y 2) el 10 y el 11-oct-2026, con todas sus comprobaciones como se esperaba (ver "Verificado en la primera ejecución", al final). El apartado 4.3 (CodeQL) se añadió después y su workflow aún no se ha ejecutado.**
 > Los puntos que la documentación no deja cerrados (o que dependen de la interfaz) están en "No verificado", al final. Antes de ejecutar un paso, comprueba que la documentación enlazada sigue diciendo lo mismo.
 
 Se ejecuta **una sola vez**, por una persona (no por un agente), cuando:
@@ -139,7 +139,7 @@ gh api "repos/$REPO/rules/branches/main" --jq '.[].type'
 
 Esperado: un ruleset `main` con `enforcement: "active"` y los cinco tipos de regla.
 
-Los nombres de los checks (`test`, `lighthouse`, `pr-policy`) son los `name` de los jobs de `ci.yml` y `pr-policy.yml`. El workflow `pr-policy.yml` tiene además un job `label` (pone la etiqueta `type:*`) que **no** es obligatorio, y `audit.yml` (auditoría semanal completa de dependencias) tampoco. Si al abrir el primer PR alguno de los tres obligatorios se queda en "Expected - Waiting for status to be reported", el contexto no coincide con el nombre real del check: corrígelo en el ruleset (ver "No verificado").
+Los nombres de los checks (`test`, `lighthouse`, `pr-policy`) son los `name` de los jobs de `ci.yml` y `pr-policy.yml`. El workflow `pr-policy.yml` tiene además un job `label` (pone la etiqueta `type:*`) que **no** es obligatorio, y `audit.yml` (auditoría semanal completa de dependencias) y `codeql.yml` (análisis de código, paso 4.3) tampoco. Si al abrir el primer PR alguno de los tres obligatorios se queda en "Expected - Waiting for status to be reported", el contexto no coincide con el nombre real del check: corrígelo en el ruleset (ver "No verificado").
 
 Para deshacerlo: `gh api -X DELETE "repos/$REPO/rulesets/<id>"`.
 
@@ -193,6 +193,27 @@ Comprobación:
 ```bash
 gh api "repos/$REPO/actions/permissions" --jq '{enabled, sha_pinning_required}'                 # true, true
 gh api "repos/$REPO/actions/permissions/fork-pr-contributor-approval" --jq .approval_policy      # all_external_contributors
+```
+
+### 4.3 CodeQL: como workflow, con la «default setup» desactivada
+
+*Este apartado se añadió después de la primera ejecución: el workflow todavía no se ha ejecutado contra el repositorio real (ver "No verificado").*
+
+CodeQL va como **workflow** (*configuración avanzada*), no con la «default setup» de GitHub. `.github/workflows/codeql.yml` analiza `actions` (los propios workflows) y `javascript-typescript` (scripts, tests y configuración), sin compilar (`build-mode: none`), en cada PR a `main`, en cada push a `main` y cada miércoles. Sus permisos son los mínimos: `contents: read` en el workflow y `security-events: write` solo en su job.
+
+**No es un check obligatorio.** El ruleset de `main` sigue exigiendo solo `test`, `lighthouse` y `pr-policy` (`assets/ruleset-main.json` no cambia). Es un análisis informativo: sus resultados se ven en *Security > Code scanning*.
+
+La «default setup» tiene que quedar **desactivada**. Si se activa, GitHub rechaza los resultados que sube el workflow y el análisis falla al enviarlos. Se comprueba, y se apaga si hiciera falta ([REST de code scanning](https://docs.github.com/en/rest/code-scanning/code-scanning)):
+
+```bash
+gh api "repos/$REPO/code-scanning/default-setup" --jq .state                       # not-configured
+gh api -X PATCH "repos/$REPO/code-scanning/default-setup" -f state=not-configured   # solo si salió "configured"
+```
+
+Tras la primera ejecución del workflow, deben aparecer las dos categorías:
+
+```bash
+gh api "repos/$REPO/code-scanning/analyses" --jq '.[].category' | sort -u    # /language:actions y /language:javascript-typescript
 ```
 
 ### Opcional: token de workflows de solo lectura
@@ -252,7 +273,10 @@ Con la fase 1 comprobada, un PR añade el dominio en `wrangler.jsonc` (así no d
 
 Al desplegar, Cloudflare crea el *Custom Domain* en la zona `carellabs.com`, que debe estar en la misma cuenta. Si ya existe un registro A, AAAA o CNAME en el dominio raíz, bórralo antes. Los registros MX y TXT del Email Routing se quedan como están. Las vistas previas de los PR siguen en `workers.dev`.
 
-Opcional: para que `www.carellabs.com` lleve a `carellabs.com`, usa una *Redirect Rule* de la zona (plantilla de redirección de www al dominio raíz) en vez de código.
+**`www` redirige al dominio raíz** (el Custom Domain solo responde a `carellabs.com` exacto). Sin código, en la zona ([doc](https://developers.cloudflare.com/workers/configuration/routing/custom-domains/#redirect-between-www-and-root-domain)):
+
+1. *DNS > Records*: registro `AAAA` con nombre `www`, valor `100::` y *Proxied*. Es una dirección reservada: la petición nunca llega ahí, Cloudflare la intercepta y aplica la regla.
+2. *Rules > Redirect Rules*, plantilla *Redirect from WWW to root*: *Wildcard pattern* `https://www.*` → `https://${1}`, `301` y **Preserve query string** marcado (la plantilla lo trae desmarcado). Si al desplegar el panel avisa de que `www` quizá no pasa por el proxy y el DNS público ya devuelve IPs de Cloudflare para `www`, es una falsa alarma: *Ignore and deploy rule anyway*.
 
 **Bot Fight Mode y JavaScript Detections, apagados.** En la zona, Cloudflare puede inyectar en todo el HTML un script en línea de *JavaScript Detections* (carga `/cdn-cgi/challenge-platform/...`). La CSP lo bloquea, así que no se ejecuta, pero deja un error de CSP en la consola de cada visita y el HTML deja de ser el del build. Viene forzado con *Bot Fight Mode* ([doc](https://developers.cloudflare.com/bots/get-started/bot-fight-mode/)), y apagar Bot Fight Mode (*Security > Settings*, filtro *Bot traffic*) **no basta**: en el plan gratuito, `enable_js` es un campo aparte de `fight_mode` que el panel no muestra. Se apaga con la [API de Bot Management](https://developers.cloudflare.com/api/resources/bot_management/methods/update/) y un token temporal limitado a la zona (*Zone > Bot Management > Edit* y *Zone > Zone > Read*, con caducidad el mismo día):
 
@@ -261,6 +285,8 @@ node .claude/skills/carellabs-github/assets/cloudflare-disable-jsd.mjs   # pide 
 ```
 
 El script lee la configuración y la reenvía completa con solo `enable_js: false`, para no resetear nada más, y avisa si cambió algún otro ajuste. Borra el token al terminar. Con Bot Fight Mode encendido, JavaScript Detections no se puede apagar: si alguien lo vuelve a encender, el script vuelve. La comprobación "HTML idéntico al build" del paso 7 lo detecta.
+
+**Registros CAA.** Limitan qué autoridades pueden emitir certificados para el dominio y sus subdominios. Con el DNS en Cloudflare basta con uno: *DNS > Records > Add record*, tipo `CAA`, nombre `@`, flags `0`, tag *Send violation reports to URL* (`iodef`) y valor `mailto:security@carellabs.com` (la frase de resumen del formulario, "…can issue certificates…", es genérica: un `iodef` no autoriza a nadie). En cuanto existe un CAA, Cloudflare añade por su cuenta, sin mostrarlos en el panel, los `issue` e `issuewild` de las autoridades que usa para el certificado universal ([doc](https://developers.cloudflare.com/ssl/edge-certificates/caa-records/)), así que la lista se mantiene sola. Si algún subdominio llega a usar otra autoridad, hay que añadirla con su propio `issue`.
 
 ## 7. Comprobaciones tras cada fase
 
@@ -284,7 +310,7 @@ curl -sI "https://$HOST"
 curl -sI "https://$HOST/no-existe"     # 404, con content-security-policy y x-content-type-options
 ```
 
-Busca `content-security-policy` (con `default-src 'self'`, `img-src 'self'`, `form-action 'none'`...), `x-content-type-options`, `x-frame-options`, `referrer-policy` y `permissions-policy`. Y la caché de un archivo con hash:
+Busca `content-security-policy` (con `default-src 'none'`, `style-src 'self'`, `font-src 'self'`, `img-src 'self'`, `form-action 'none'`... y sin `script-src` ni `object-src`: la web no lleva JavaScript y todo lo que no se nombra queda prohibido), `x-content-type-options`, `x-frame-options`, `referrer-policy`, `permissions-policy` y `strict-transport-security`. Y la caché de un archivo con hash:
 
 ```bash
 ASSET="$(curl -s "https://$HOST" | grep -o '/_astro/[^"]*\.css' | head -n 1)"
@@ -310,9 +336,20 @@ En la vista previa de un PR, la última línea no cuadra: las Previews (beta abi
 curl -s https://carellabs.com | grep -c hola@carellabs.com        # 1 o más: correcto
 ```
 
-Si da `0` y en el HTML aparece `[email protected]`, Cloudflare tiene activa la *Email Address Obfuscation* y la web depende de su script para mostrar el correo. Desactívala **solo para este host** con una *Configuration Rule* (*Rules > Configuration Rules*, ajuste *Email Obfuscation* en off, condición: hostname igual a `carellabs.com`), en vez de en toda la zona ([doc](https://developers.cloudflare.com/waf/tools/scrape-shield/email-address-obfuscation/), [ajustes de Configuration Rules](https://developers.cloudflare.com/rules/configuration-rules/settings/)). Repite la comprobación para `/en/`.
+Si da `0` y en el HTML aparece `[email protected]`, Cloudflare tiene activa la *Email Address Obfuscation*, que depende de un script suyo para mostrar el correo. Con la CSP actual (`default-src 'none'`) ese script queda bloqueado, así que el correo **no se vería en absoluto**. Desactívala **solo para este host** con una *Configuration Rule* (*Rules > Configuration Rules*, ajuste *Email Obfuscation* en off, condición: hostname igual a `carellabs.com`), en vez de en toda la zona ([doc](https://developers.cloudflare.com/waf/tools/scrape-shield/email-address-obfuscation/), [ajustes de Configuration Rules](https://developers.cloudflare.com/rules/configuration-rules/settings/)). Repite la comprobación para `/en/`.
 
-**HSTS: todavía no.** `public/_headers` no envía `Strict-Transport-Security` a propósito. Actívalo (en Cloudflare, *SSL/TLS > Edge Certificates*, o como cabecera) solo cuando **todos los subdominios** (`finanzas.`, `barberia.`, `closet.` y los futuros) sirvan HTTPS: con `includeSubDomains` los que no lo hagan quedan inaccesibles, y con `preload` es difícil dar marcha atrás ([doc](https://developers.cloudflare.com/ssl/edge-certificates/additional-options/http-strict-transport-security/)).
+**HSTS: un año, sin `includeSubDomains` ni `preload`.** `public/_headers` envía `Strict-Transport-Security: max-age=31536000` en cualquier host que sirva la web (también en las vistas previas de `*.workers.dev`, que ya están en la lista de precarga de los navegadores), sin `includeSubDomains` ni `preload`, a propósito: así el navegador exige HTTPS al nombre exacto que visitó (`carellabs.com`) y no a sus subdominios. Va como cabecera del repositorio, así que no hace falta activarlo también en el panel de Cloudflare. Añade `includeSubDomains` (y, mucho después, `preload`) solo cuando **todos los subdominios** (`finanzas.`, `barberia.`, `closet.` y los futuros) sirvan HTTPS: con `includeSubDomains` los que no lo hagan quedan inaccesibles, y con `preload` es difícil dar marcha atrás ([doc](https://developers.cloudflare.com/ssl/edge-certificates/additional-options/http-strict-transport-security/)). Un test de `tests/headers.spec.ts` impide que se cuelen antes de tiempo. Si algún día hubiera que retirarlo, se sirve `max-age=0` por HTTPS en el mismo dominio: cada navegador olvida la regla en su siguiente visita, y los que no vuelvan la conservan hasta que caduque. Para comprobarlo:
+
+```bash
+curl -sI "https://$HOST" | grep -i strict-transport-security     # max-age=31536000, sin includeSubDomains ni preload
+```
+
+**CAA** (solo en la fase 2: es DNS de la zona). Debe salir tu `iodef` y los `issue`/`issuewild` que añade Cloudflare, y la autoridad del certificado que se sirve tiene que estar entre ellos:
+
+```bash
+curl -s -H 'accept: application/dns-json' "https://cloudflare-dns.com/dns-query?name=carellabs.com&type=CAA" | tr ',' '\n' | grep '"data"'
+echo | openssl s_client -connect carellabs.com:443 -servername carellabs.com 2>/dev/null | openssl x509 -noout -issuer -enddate
+```
 
 ## Primer PR de prueba
 
@@ -340,6 +377,9 @@ Los pasos 0 a 4 se ejecutaron contra el repositorio real y cada comprobación de
 - **Fase 2 de Cloudflare Workers** (paso 6.2, comprobada en `carellabs.com`): la build de `main` creó el Custom Domain con el token que genera Workers Builds (incluye *Zone > Workers Routes > Edit*). El dominio raíz tiene registros A y AAAA de Cloudflare, los MX y el SPF del Email Routing siguen igual y el `*.workers.dev` de producción responde 404. Cabeceras, 404 propia, redirección 307, caché, `security.txt` como `text/plain` y correo sin ofuscar: todo correcto.
 - **Cloudflare inyectaba un script en el HTML de la zona**: *JavaScript Detections*, bloqueado por la CSP, con un error en la consola de cada visita. Apagar Bot Fight Mode no lo quitó; hubo que poner `enable_js: false` por la API (paso 6.2). Después, el HTML de `/`, `/en/` y la 404 es idéntico al build, la consola de un navegador real queda limpia y vuelven la compresión Brotli y el ETag.
 - **Caché DNS negativo**: justo después de publicar, el router siguió respondiendo un rato que `carellabs.com` no existía, aunque Cloudflare y Google ya lo resolvían (paso 7).
+- **CAA** (paso 6.2): con solo el registro `iodef`, Cloudflare añadió `issue` e `issuewild` para `letsencrypt.org`, `pki.goog`, `ssl.com`, `comodoca.com` (Sectigo) y `digicert.com`. El certificado que se sirve es de Google Trust Services (`pki.goog`), que está en la lista.
+- **`www` al dominio raíz** (paso 6.2): `https://www.carellabs.com/en/?x=1&y=2` responde 301 a `https://carellabs.com/en/?x=1&y=2` (conserva ruta y query), y `http://www…` hace dos saltos (primero a HTTPS, luego al dominio raíz) y termina en 200. `www` no envía HSTS. El panel avisó de que `www` quizá no pasaba por el proxy aunque el DNS público ya devolvía IPs de Cloudflare: era una falsa alarma.
+- **«Default setup» de CodeQL** (paso 4.3): la consulta devolvió `not-configured`, como debe estar para que el workflow pueda subir sus resultados.
 
 ## No verificado
 
@@ -349,3 +389,4 @@ Lo que queda de verdad pendiente:
 - **`sha_pinning_required`**: todas las acciones están fijadas por SHA (incluida `treosh/lighthouse-ci-action`). Si una ejecución falla por una acción "no fijada", es una acción nueva o un cambio de Dependabot que perdió el SHA.
 - **Ruta exacta de los menús de la interfaz**: importación del repositorio en Workers (paso 6.1) y *Configuration Rules* (paso 7). Las interfaces se reorganizan con frecuencia.
 - **El workflow semanal `audit.yml`**: GitHub desactiva los workflows programados de un repositorio público tras 60 días sin actividad; si deja de llegar el aviso, actívalo de nuevo desde la pestaña *Actions*.
+- **CodeQL (paso 4.3)**: el workflow está escrito, pero aún no se ha ejecutado en GitHub (la «default setup» sí se comprobó: ver "Verificado"). Se confirma con el primer PR que incluya `codeql.yml`: que los dos jobs `analyze` terminan en verde, que *Security > Code scanning* muestra las categorías `/language:actions` y `/language:javascript-typescript`, y cómo se comporta con los PR de Dependabot y de forks (su token es de solo lectura, así que subir resultados puede no estar permitido; al no ser obligatorio, no bloquea la fusión). Como `audit.yml`, su ejecución semanal se desactiva tras 60 días sin actividad en el repositorio.

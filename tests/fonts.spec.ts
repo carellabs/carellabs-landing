@@ -70,7 +70,7 @@ test("the CSP does not allow Google font hosts and serves fonts from 'self'", ()
       .find((d) => d.startsWith(`${name} `));
 
   // Control positivo: la política se ha leído y tiene contenido.
-  expect(csp).toContain("default-src 'self'");
+  expect(csp).toContain("default-src 'none'");
 
   expect(csp).not.toMatch(/google|gstatic/i);
   expect(directive("font-src")).toBe("font-src 'self'");

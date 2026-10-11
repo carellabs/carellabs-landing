@@ -28,9 +28,12 @@ npm run preview    # sirve dist/ en local
 | Cabeceras de seguridad (Cloudflare las aplica a todos los assets) | `public/_headers` |
 | Despliegue en Cloudflare Workers (dominio, assets estáticos, 404, vistas previas) | `wrangler.jsonc` |
 | Contacto de seguridad publicado (RFC 9116) | `public/.well-known/security.txt` |
+| Análisis de código con CodeQL (workflows y JavaScript/TypeScript; informativo, no bloquea la fusión) | `.github/workflows/codeql.yml` |
 | Imágenes de previsualización en redes (`og:image`) | `scripts/og/template.html`; se generan con `npm run og` en `public/og-{es,en}.png` |
 
 La fuente (JetBrains Mono) se aloja en la propia web con `@fontsource-variable/jetbrains-mono`: no se carga nada de Google Fonts y la CSP solo admite `font-src 'self'`.
+
+La web no lleva JavaScript y la CSP lo refleja: `default-src 'none'` y solo estilos, fuentes e imágenes propios. Si algún día se añade un `<script>` o un manejador en línea (`onclick=`…), hay que revisar la CSP de `public/_headers` a la vez; un test que recorre el HTML de `dist/` avisa.
 
 ### Trayectoria
 
@@ -64,13 +67,13 @@ Los tests levantan su propio `astro preview` en el puerto **4322** (el `npm run 
 | `tests/theme.spec.ts` | `color-scheme` y `theme-color` por esquema, fondo según `prefers-color-scheme`, contraste del botón principal (reposo y hover), de los rellenos ámbar (WCAG 1.4.11) y de los textos de la tarjeta FinApp sobre su fondo de puntos |
 | `tests/semantics.spec.ts` | El enlace de salto mueve el foco a `main`, el anillo de foco sigue visible en enlaces y no rodea todo `main`, todas las listas conservan `role="list"`, y el separador `/` de las especialidades no se anuncia |
 | `tests/i18n.spec.ts` | `es.json` y `en.json` con las mismas claves, ninguna clave sin uso, ningún texto de interfaz escrito a mano en las plantillas |
-| `tests/headers.spec.ts` | `public/_headers`: cabeceras de seguridad, CSP exacta (sin `data:`, con `form-action 'none'`), caché inmutable solo para `/_astro/*`, y las páginas (`/`, `/en/` y la 404) cargan sin violaciones de CSP con esa política aplicada de verdad |
+| `tests/headers.spec.ts` | `public/_headers`: cabeceras de seguridad, HSTS de un año sin `includeSubDomains` ni `preload`, CSP exacta (`default-src 'none'`, sin `script-src` ni `connect-src`, sin `data:`, con `form-action 'none'`), ningún `<script>` en el HTML de `dist/`, caché inmutable solo para `/_astro/*`, y las páginas (`/`, `/en/` y la 404) cargan sin violaciones de CSP, en esquema oscuro y claro, con esa política aplicada de verdad (un `<script>` propio inyectado a mano se bloquea) |
 | `tests/seo.spec.ts` | `sitemap-0.xml` con las dos URL y sus alternates `es`/`en`; `robots.txt` apunta al índice del sitemap |
 | `tests/fonts.spec.ts` | Fuente alojada en la web (sin peticiones a Google, una descarga por archivo, sin `data:`) y CSP de `public/_headers` sin dominios externos |
 | `.github/scripts/pr-policy.test.mjs` | Política de PR: título como commit convencional (de hasta 100 caracteres, con un carácter visible tras los dos puntos), `Closes #N` obligatorio en `feat`/`fix` (con `Closes: #N` admitido, sin `#0` y sin contar los comentarios HTML), etiqueta `type:*` derivada del título, la plantilla de PR, y que la CLI no inyecta nada en `$GITHUB_OUTPUT` ni en el log |
-| `.github/scripts/repo-config.test.mjs` | Configuración del repositorio: acciones fijadas por SHA, concurrencia de `ci.yml`, privilegios separados en `pr-policy.yml`, ruleset con `integration_id`, plantilla de PR y skill alineadas, puerto de Playwright |
+| `.github/scripts/repo-config.test.mjs` | Configuración del repositorio: acciones fijadas por SHA, concurrencia de `ci.yml`, privilegios separados en `pr-policy.yml`, `codeql.yml` (lenguajes, eventos, cron y permisos mínimos, sin entrar en el ruleset), ruleset con `integration_id`, plantilla de PR y skill alineadas, puerto de Playwright |
 
-En CI (`.github/workflows/ci.yml`) corre además `npm audit --omit=dev --audit-level=high` (dependencias de producción), `npm run check`, `npm run test:scripts` y Lighthouse con umbrales: performance ≥ 95, accesibilidad 100, buenas prácticas ≥ 95, SEO 100 (`lighthouserc.json`). El workflow `.github/workflows/pr-policy.yml` valida cada PR (check `pr-policy`, solo lectura) y, en un segundo job sin checkout (`label`), le pone la etiqueta `type:*`. `.github/workflows/audit.yml` hace cada lunes una auditoría completa (también de desarrollo) y se puede lanzar a mano; no es obligatorio para fusionar.
+En CI (`.github/workflows/ci.yml`) corre además `npm audit --omit=dev --audit-level=high` (dependencias de producción), `npm run check`, `npm run test:scripts` y Lighthouse con umbrales: performance ≥ 95, accesibilidad 100, buenas prácticas ≥ 95, SEO 100 (`lighthouserc.json`). El workflow `.github/workflows/pr-policy.yml` valida cada PR (check `pr-policy`, solo lectura) y, en un segundo job sin checkout (`label`), le pone la etiqueta `type:*`. `.github/workflows/audit.yml` hace cada lunes una auditoría completa (también de desarrollo) y se puede lanzar a mano; no es obligatorio para fusionar. `.github/workflows/codeql.yml` analiza con CodeQL los workflows (`actions`) y el JavaScript/TypeScript en cada PR a `main`, en cada push a `main` y cada miércoles; es informativo (resultados en *Security > Code scanning*), tampoco es obligatorio, y exige tener desactivada la «default setup» de CodeQL de GitHub (apartado 4.3 de la guía).
 
 ## Flujo de trabajo
 

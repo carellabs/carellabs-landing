@@ -254,12 +254,27 @@ Al desplegar, Cloudflare crea el *Custom Domain* en la zona `carellabs.com`, que
 
 Opcional: para que `www.carellabs.com` lleve a `carellabs.com`, usa una *Redirect Rule* de la zona (plantilla de redirección de www al dominio raíz) en vez de código.
 
+**Bot Fight Mode y JavaScript Detections, apagados.** En la zona, Cloudflare puede inyectar en todo el HTML un script en línea de *JavaScript Detections* (carga `/cdn-cgi/challenge-platform/...`). La CSP lo bloquea, así que no se ejecuta, pero deja un error de CSP en la consola de cada visita y el HTML deja de ser el del build. Viene forzado con *Bot Fight Mode* ([doc](https://developers.cloudflare.com/bots/get-started/bot-fight-mode/)), y apagar Bot Fight Mode (*Security > Settings*, filtro *Bot traffic*) **no basta**: en el plan gratuito, `enable_js` es un campo aparte de `fight_mode` que el panel no muestra. Se apaga con la [API de Bot Management](https://developers.cloudflare.com/api/resources/bot_management/methods/update/) y un token temporal limitado a la zona (*Zone > Bot Management > Edit* y *Zone > Zone > Read*, con caducidad el mismo día):
+
+```bash
+node .claude/skills/carellabs-github/assets/cloudflare-disable-jsd.mjs   # pide el token sin mostrarlo
+```
+
+El script lee la configuración y la reenvía completa con solo `enable_js: false`, para no resetear nada más, y avisa si cambió algún otro ajuste. Borra el token al terminar. Con Bot Fight Mode encendido, JavaScript Detections no se puede apagar: si alguien lo vuelve a encender, el script vuelve. La comprobación "HTML idéntico al build" del paso 7 lo detecta.
+
 ## 7. Comprobaciones tras cada fase
 
 Primero con la URL `*.workers.dev` (fase 1) y después con `carellabs.com` (fase 2). En los comandos, `HOST` es la que toque:
 
 ```bash
 HOST="carellabs-landing.<subdominio>.workers.dev"   # fase 1; en la fase 2: HOST="carellabs.com"
+```
+
+Nada más publicar el dominio, tu equipo o tu router pueden seguir respondiendo que no existe durante un rato, hasta 30 minutos (el mínimo del SOA de la zona), porque guardaron la respuesta de antes. Para comprobar sin esperar, pide la IP a un DNS público y fíjala en `curl`:
+
+```bash
+IP="$(curl -s -H 'accept: application/dns-json' "https://cloudflare-dns.com/dns-query?name=$HOST&type=A" | grep -o '"data":"[^"]*"' | head -n 1 | cut -d'"' -f4)"
+curl -sI --resolve "$HOST:443:$IP" "https://$HOST"
 ```
 
 **Cabeceras reales.** La CSP y el resto tienen que llegar tal cual están en `public/_headers`, también en la 404:
@@ -276,7 +291,18 @@ ASSET="$(curl -s "https://$HOST" | grep -o '/_astro/[^"]*\.css' | head -n 1)"
 curl -sI "https://$HOST$ASSET" | grep -i cache-control      # public, max-age=31536000, immutable
 ```
 
-**Consola sin violaciones de CSP.** Abre `/`, `/en/` y una URL inexistente con las herramientas de desarrollo (pestaña *Console*). No debe aparecer ningún mensaje "Refused to ... because it violates the following Content Security Policy directive". Si aparece, una directiva es más estricta de lo que la web necesita, o Cloudflare está inyectando algo (ver el punto 6 del paso 6.1).
+**HTML idéntico al build.** Construye en local el mismo commit que está desplegado (`main`) y compáralo con lo que se sirve. Cualquier diferencia es algo que Cloudflare inyecta o transforma:
+
+```bash
+npm run build
+curl -s "https://$HOST/"          | cmp - dist/index.html    && echo "/ igual"
+curl -s "https://$HOST/en/"       | cmp - dist/en/index.html && echo "/en/ igual"
+curl -s "https://$HOST/no-existe" | cmp - dist/404.html      && echo "404 igual"
+```
+
+En la vista previa de un PR, la última línea no cuadra: las Previews (beta abierta) responden a las rutas inexistentes con su propio "Not found" de 9 bytes, sin las cabeceras de `_headers`, en vez de con la 404 del build. La 404 propia se comprueba en producción. Las Previews añaden además `X-Robots-Tag: noindex` a todas sus respuestas.
+
+**Consola sin violaciones de CSP.** Abre `/`, `/en/` y una URL inexistente con las herramientas de desarrollo (pestaña *Console*). No debe aparecer ningún mensaje "Refused to ... because it violates the following Content Security Policy directive". Si aparece, una directiva es más estricta de lo que la web necesita, o Cloudflare está inyectando algo: mira el punto 6 del paso 6.1 y, si el script en línea carga `/cdn-cgi/challenge-platform/`, JavaScript Detections en el paso 6.2.
 
 **Cloudflare no ofusca el correo** (solo en la fase 2: la ofuscación es un ajuste de la zona `carellabs.com`). El correo (`hola@carellabs.com`) debe llegar en claro en el HTML:
 
@@ -297,7 +323,7 @@ Con todo configurado, abre un PR `docs: ...` pequeño y comprueba:
 - que el botón de fusión solo ofrece *Squash and merge*, que el título propuesto es el del PR y que el mensaje son los commits de la rama;
 - que un PR `feat: ...` sin `Closes #N` falla en `pr-policy` **y aun así recibe la etiqueta `type:feature`** (es la comprobación del paso de salidas entre los jobs `pr-policy` y `label`).
 
-## Verificado en la primera ejecución (10-oct-2026)
+## Verificado en la primera ejecución (10 y 11-oct-2026)
 
 Los pasos 0 a 4 se ejecutaron contra el repositorio real y cada comprobación devolvió lo esperado:
 
@@ -310,6 +336,10 @@ Los pasos 0 a 4 se ejecutaron contra el repositorio real y cada comprobación de
 - **Fase 1 de Cloudflare Workers** (paso 6.1, comprobada en `*.workers.dev`): `_headers` llega tal cual en `/`, `/en/`, en la redirección `/en` a `/en/` (307) y en la 404, que responde con estado 404 de verdad. `/_astro/*` sale con `max-age=31536000, immutable`, el HTML con `max-age=0, must-revalidate` y `_headers` no se sirve como archivo. El HTML servido es idéntico al build local y un navegador real no muestra violaciones de CSP.
 - **DNS antes de la fase 2**: el dominio raíz no tenía registros A, AAAA ni CNAME, así que no hay conflicto con el Custom Domain. Los MX y el TXT de SPF del Email Routing siguen ahí, y `hola@carellabs.com` tiene su regla de reenvío.
 - **La primera build de un PR falló** (el de la fase 2): Workers Builds ejecuta `npx wrangler preview` (beta abierta) en las ramas, y sin el bloque `previews` en `wrangler.jsonc` termina con error antes de subir nada. Producción no se tocó. Se añadió `"previews": {}` y un test lo vigila.
+- **Vistas previas**: con el bloque `previews`, cada PR publica su Preview y Cloudflare comenta la URL en el PR. Sirven las mismas cabeceras y el mismo HTML que el build, pero no la 404 propia (paso 7). Tras fusionar el PR y borrarse su rama, la Preview desapareció: su URL devuelve la página de error de Cloudflare.
+- **Fase 2 de Cloudflare Workers** (paso 6.2, comprobada en `carellabs.com`): la build de `main` creó el Custom Domain con el token que genera Workers Builds (incluye *Zone > Workers Routes > Edit*). El dominio raíz tiene registros A y AAAA de Cloudflare, los MX y el SPF del Email Routing siguen igual y el `*.workers.dev` de producción responde 404. Cabeceras, 404 propia, redirección 307, caché, `security.txt` como `text/plain` y correo sin ofuscar: todo correcto.
+- **Cloudflare inyectaba un script en el HTML de la zona**: *JavaScript Detections*, bloqueado por la CSP, con un error en la consola de cada visita. Apagar Bot Fight Mode no lo quitó; hubo que poner `enable_js: false` por la API (paso 6.2). Después, el HTML de `/`, `/en/` y la 404 es idéntico al build, la consola de un navegador real queda limpia y vuelven la compresión Brotli y el ETag.
+- **Caché DNS negativo**: justo después de publicar, el router siguió respondiendo un rato que `carellabs.com` no existía, aunque Cloudflare y Google ya lo resolvían (paso 7).
 
 ## No verificado
 
@@ -318,5 +348,4 @@ Lo que queda de verdad pendiente:
 - **Salida de etiqueta entre jobs cuando `pr-policy` falla**: el código del runner evalúa las `outputs` del job al terminar, falle o no un paso, y la documentación solo dice que se evalúan "al final de cada job". Que el job `label` las reciba con el job anterior en rojo se confirma con el PR `feat:` sin issue del apartado "Primer PR de prueba". Si no llegara, el efecto sería solo que ese PR no se etiqueta.
 - **`sha_pinning_required`**: todas las acciones están fijadas por SHA (incluida `treosh/lighthouse-ci-action`). Si una ejecución falla por una acción "no fijada", es una acción nueva o un cambio de Dependabot que perdió el SHA.
 - **Ruta exacta de los menús de la interfaz**: importación del repositorio en Workers (paso 6.1) y *Configuration Rules* (paso 7). Las interfaces se reorganizan con frecuencia.
-- **Custom Domain en el dominio raíz** (fase 2): que Cloudflare lo cree sin conflicto con los registros MX y TXT del Email Routing se confirma al desplegar.
 - **El workflow semanal `audit.yml`**: GitHub desactiva los workflows programados de un repositorio público tras 60 días sin actividad; si deja de llegar el aviso, actívalo de nuevo desde la pestaña *Actions*.

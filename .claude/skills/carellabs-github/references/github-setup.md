@@ -1,6 +1,6 @@
 # Configuración de GitHub de `carellabs-landing` (capa 1)
 
-> **Pasos 0 a 4 ejecutados contra el repositorio real el 10-oct-2026, con todas sus comprobaciones como se esperaba (ver "Verificado en la primera ejecución", al final). Los pasos 6 y 7 (Cloudflare Workers) siguen sin ejecutar.**
+> **Pasos 0 a 4 ejecutados contra el repositorio real el 10-oct-2026, y los pasos 6 y 7 (Cloudflare Workers, fases 1 y 2) el 10 y el 11-oct-2026, con todas sus comprobaciones como se esperaba (ver "Verificado en la primera ejecución", al final). El apartado 4.3 (CodeQL) se añadió después y su workflow aún no se ha ejecutado.**
 > Los puntos que la documentación no deja cerrados (o que dependen de la interfaz) están en "No verificado", al final. Antes de ejecutar un paso, comprueba que la documentación enlazada sigue diciendo lo mismo.
 
 Se ejecuta **una sola vez**, por una persona (no por un agente), cuando:
@@ -283,6 +283,8 @@ node .claude/skills/carellabs-github/assets/cloudflare-disable-jsd.mjs   # pide 
 
 El script lee la configuración y la reenvía completa con solo `enable_js: false`, para no resetear nada más, y avisa si cambió algún otro ajuste. Borra el token al terminar. Con Bot Fight Mode encendido, JavaScript Detections no se puede apagar: si alguien lo vuelve a encender, el script vuelve. La comprobación "HTML idéntico al build" del paso 7 lo detecta.
 
+**Registros CAA.** Limitan qué autoridades pueden emitir certificados para el dominio y sus subdominios. Con el DNS en Cloudflare basta con uno: *DNS > Records > Add record*, tipo `CAA`, nombre `@`, flags `0`, tag *Send violation reports to URL* (`iodef`) y valor `mailto:security@carellabs.com` (la frase de resumen del formulario, "…can issue certificates…", es genérica: un `iodef` no autoriza a nadie). En cuanto existe un CAA, Cloudflare añade por su cuenta, sin mostrarlos en el panel, los `issue` e `issuewild` de las autoridades que usa para el certificado universal ([doc](https://developers.cloudflare.com/ssl/edge-certificates/caa-records/)), así que la lista se mantiene sola. Si algún subdominio llega a usar otra autoridad, hay que añadirla con su propio `issue`.
+
 ## 7. Comprobaciones tras cada fase
 
 Primero con la URL `*.workers.dev` (fase 1) y después con `carellabs.com` (fase 2). En los comandos, `HOST` es la que toque:
@@ -339,6 +341,13 @@ Si da `0` y en el HTML aparece `[email protected]`, Cloudflare tiene activa la *
 curl -sI "https://$HOST" | grep -i strict-transport-security     # max-age=31536000, sin includeSubDomains ni preload
 ```
 
+**CAA** (solo en la fase 2: es DNS de la zona). Debe salir tu `iodef` y los `issue`/`issuewild` que añade Cloudflare, y la autoridad del certificado que se sirve tiene que estar entre ellos:
+
+```bash
+curl -s -H 'accept: application/dns-json' "https://cloudflare-dns.com/dns-query?name=carellabs.com&type=CAA" | tr ',' '\n' | grep '"data"'
+echo | openssl s_client -connect carellabs.com:443 -servername carellabs.com 2>/dev/null | openssl x509 -noout -issuer -enddate
+```
+
 ## Primer PR de prueba
 
 Con todo configurado, abre un PR `docs: ...` pequeño y comprueba:
@@ -365,6 +374,8 @@ Los pasos 0 a 4 se ejecutaron contra el repositorio real y cada comprobación de
 - **Fase 2 de Cloudflare Workers** (paso 6.2, comprobada en `carellabs.com`): la build de `main` creó el Custom Domain con el token que genera Workers Builds (incluye *Zone > Workers Routes > Edit*). El dominio raíz tiene registros A y AAAA de Cloudflare, los MX y el SPF del Email Routing siguen igual y el `*.workers.dev` de producción responde 404. Cabeceras, 404 propia, redirección 307, caché, `security.txt` como `text/plain` y correo sin ofuscar: todo correcto.
 - **Cloudflare inyectaba un script en el HTML de la zona**: *JavaScript Detections*, bloqueado por la CSP, con un error en la consola de cada visita. Apagar Bot Fight Mode no lo quitó; hubo que poner `enable_js: false` por la API (paso 6.2). Después, el HTML de `/`, `/en/` y la 404 es idéntico al build, la consola de un navegador real queda limpia y vuelven la compresión Brotli y el ETag.
 - **Caché DNS negativo**: justo después de publicar, el router siguió respondiendo un rato que `carellabs.com` no existía, aunque Cloudflare y Google ya lo resolvían (paso 7).
+- **CAA** (paso 6.2): con solo el registro `iodef`, Cloudflare añadió `issue` e `issuewild` para `letsencrypt.org`, `pki.goog`, `ssl.com`, `comodoca.com` (Sectigo) y `digicert.com`. El certificado que se sirve es de Google Trust Services (`pki.goog`), que está en la lista.
+- **«Default setup» de CodeQL** (paso 4.3): la consulta devolvió `not-configured`, como debe estar para que el workflow pueda subir sus resultados.
 
 ## No verificado
 
@@ -374,4 +385,4 @@ Lo que queda de verdad pendiente:
 - **`sha_pinning_required`**: todas las acciones están fijadas por SHA (incluida `treosh/lighthouse-ci-action`). Si una ejecución falla por una acción "no fijada", es una acción nueva o un cambio de Dependabot que perdió el SHA.
 - **Ruta exacta de los menús de la interfaz**: importación del repositorio en Workers (paso 6.1) y *Configuration Rules* (paso 7). Las interfaces se reorganizan con frecuencia.
 - **El workflow semanal `audit.yml`**: GitHub desactiva los workflows programados de un repositorio público tras 60 días sin actividad; si deja de llegar el aviso, actívalo de nuevo desde la pestaña *Actions*.
-- **CodeQL (paso 4.3)**: el workflow y los comandos de la «default setup» están escritos, no ejecutados contra GitHub. Se confirma con el primer PR que incluya `codeql.yml`: que los dos jobs `analyze` terminan en verde, que *Security > Code scanning* muestra las categorías `/language:actions` y `/language:javascript-typescript`, y cómo se comporta con los PR de Dependabot y de forks (su token es de solo lectura, así que subir resultados puede no estar permitido; al no ser obligatorio, no bloquea la fusión). Como `audit.yml`, su ejecución semanal se desactiva tras 60 días sin actividad en el repositorio.
+- **CodeQL (paso 4.3)**: el workflow está escrito, pero aún no se ha ejecutado en GitHub (la «default setup» sí se comprobó: ver "Verificado"). Se confirma con el primer PR que incluya `codeql.yml`: que los dos jobs `analyze` terminan en verde, que *Security > Code scanning* muestra las categorías `/language:actions` y `/language:javascript-typescript`, y cómo se comporta con los PR de Dependabot y de forks (su token es de solo lectura, así que subir resultados puede no estar permitido; al no ser obligatorio, no bloquea la fusión). Como `audit.yml`, su ejecución semanal se desactiva tras 60 días sin actividad en el repositorio.

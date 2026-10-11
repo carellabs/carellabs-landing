@@ -32,6 +32,8 @@ npm run preview    # sirve dist/ en local
 
 La fuente (JetBrains Mono) se aloja en la propia web con `@fontsource-variable/jetbrains-mono`: no se carga nada de Google Fonts y la CSP solo admite `font-src 'self'`.
 
+La web no lleva JavaScript y la CSP lo refleja: `default-src 'none'` y solo estilos, fuentes e imágenes propios. Si algún día se añade un `<script>`, hay que revisar la CSP de `public/_headers` a la vez; un test que recorre el HTML de `dist/` avisa.
+
 ### Trayectoria
 
 Cada puesto de `experience.items` (en `es.json` y `en.json`) lleva `"group": "software"` o `"before"`. El primer puesto de `software` se marca como actual (clase `now`).
@@ -64,7 +66,7 @@ Los tests levantan su propio `astro preview` en el puerto **4322** (el `npm run 
 | `tests/theme.spec.ts` | `color-scheme` y `theme-color` por esquema, fondo según `prefers-color-scheme`, contraste del botón principal (reposo y hover), de los rellenos ámbar (WCAG 1.4.11) y de los textos de la tarjeta FinApp sobre su fondo de puntos |
 | `tests/semantics.spec.ts` | El enlace de salto mueve el foco a `main`, el anillo de foco sigue visible en enlaces y no rodea todo `main`, todas las listas conservan `role="list"`, y el separador `/` de las especialidades no se anuncia |
 | `tests/i18n.spec.ts` | `es.json` y `en.json` con las mismas claves, ninguna clave sin uso, ningún texto de interfaz escrito a mano en las plantillas |
-| `tests/headers.spec.ts` | `public/_headers`: cabeceras de seguridad, HSTS de un año solo para `carellabs.com` (sin `includeSubDomains` ni `preload`), CSP exacta (sin `data:`, con `form-action 'none'`), caché inmutable solo para `/_astro/*`, y las páginas (`/`, `/en/` y la 404) cargan sin violaciones de CSP con esa política aplicada de verdad |
+| `tests/headers.spec.ts` | `public/_headers`: cabeceras de seguridad, HSTS de un año solo para `carellabs.com` (sin `includeSubDomains` ni `preload`), CSP exacta (`default-src 'none'`, sin `script-src` ni `connect-src`, sin `data:`, con `form-action 'none'`), ningún `<script>` en el HTML de `dist/`, caché inmutable solo para `/_astro/*`, y las páginas (`/`, `/en/` y la 404) cargan sin violaciones de CSP, en esquema oscuro y claro, con esa política aplicada de verdad (un `<script>` propio inyectado a mano se bloquea) |
 | `tests/seo.spec.ts` | `sitemap-0.xml` con las dos URL y sus alternates `es`/`en`; `robots.txt` apunta al índice del sitemap |
 | `tests/fonts.spec.ts` | Fuente alojada en la web (sin peticiones a Google, una descarga por archivo, sin `data:`) y CSP de `public/_headers` sin dominios externos |
 | `.github/scripts/pr-policy.test.mjs` | Política de PR: título como commit convencional (de hasta 100 caracteres, con un carácter visible tras los dos puntos), `Closes #N` obligatorio en `feat`/`fix` (con `Closes: #N` admitido, sin `#0` y sin contar los comentarios HTML), etiqueta `type:*` derivada del título, la plantilla de PR, y que la CLI no inyecta nada en `$GITHUB_OUTPUT` ni en el log |

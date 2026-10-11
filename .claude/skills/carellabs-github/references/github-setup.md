@@ -284,7 +284,7 @@ curl -sI "https://$HOST"
 curl -sI "https://$HOST/no-existe"     # 404, con content-security-policy y x-content-type-options
 ```
 
-Busca `content-security-policy` (con `default-src 'self'`, `img-src 'self'`, `form-action 'none'`...), `x-content-type-options`, `x-frame-options`, `referrer-policy`, `permissions-policy` y `strict-transport-security`. Y la caché de un archivo con hash:
+Busca `content-security-policy` (con `default-src 'none'`, `style-src 'self'`, `font-src 'self'`, `img-src 'self'`, `form-action 'none'`... y sin `script-src` ni `object-src`: la web no lleva JavaScript y todo lo que no se nombra queda prohibido), `x-content-type-options`, `x-frame-options`, `referrer-policy`, `permissions-policy` y `strict-transport-security`. Y la caché de un archivo con hash:
 
 ```bash
 ASSET="$(curl -s "https://$HOST" | grep -o '/_astro/[^"]*\.css' | head -n 1)"

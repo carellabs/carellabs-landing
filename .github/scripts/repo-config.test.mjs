@@ -7,7 +7,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { evaluatePr } from "./pr-policy.mjs";
+import { evaluatePr, stripHtmlComments } from "./pr-policy.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const read = (rel) => readFileSync(join(ROOT, rel), "utf8");
@@ -344,7 +344,7 @@ describe("plantilla de PR y skill de GitHub", () => {
   });
 
   test("la plantilla sin rellenar no aporta una referencia de cierre válida (ni dentro de sus comentarios)", () => {
-    const sinComentarios = plantilla().replace(/<!--[\s\S]*?-->/g, "");
+    const sinComentarios = stripHtmlComments(plantilla());
     assert.doesNotMatch(sinComentarios, /\b(close[sd]?|fix(e[sd])?|resolve[sd]?):?\s+#[1-9]\d*\b/i);
     assert.equal(evaluatePr({ title: "feat: algo", body: plantilla() }).ok, false);
   });

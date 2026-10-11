@@ -261,7 +261,9 @@ p { text-wrap: pretty; }
 .apps { display: grid; gap: 1rem; margin-top: 2rem; }
 @media (min-width: 56em) {
   .apps { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .app:first-child { grid-column: span 2; grid-row: span 2; }
+  .app:first-child { grid-column: span 2; }
+  /* Dos filas solo si hay al menos otras dos apps que las llenen (si no, sobresale una fila vacía). */
+  .app:first-child:nth-last-child(n + 3) { grid-row: span 2; }
 }
 .app {
   display: flex;

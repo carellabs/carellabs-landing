@@ -24,6 +24,7 @@
   {
     "id": "avrilcloset",
     "name": "AvrilCloset",
+    "hidden": true,
     "status": "in-progress",
     "url": "https://closet.carellabs.com",
     "stack": ["TypeScript", "React"],

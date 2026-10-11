@@ -9,6 +9,9 @@ interface Props {
 const { lang, t } = Astro.props;
 
 type Status = keyof Messages["lab"]["status"];
+
+// Una app con `"hidden": true` sigue en apps.json, pero no se muestra (para ocultarla de momento sin borrarla).
+const visibleApps = apps.filter((app) => !("hidden" in app && app.hidden === true));
 ---
 
 <section class="section" id="lab" aria-labelledby="h-lab">
@@ -16,7 +19,7 @@ type Status = keyof Messages["lab"]["status"];
   <p class="section-intro">{t.lab.intro}</p>
   <ul class="apps" role="list">
     {
-      apps.map((app) => {
+      visibleApps.map((app) => {
         // Solo las apps en beta o disponibles enlazan; el resto se muestra sin enlace.
         const linked = app.status === "live" || app.status === "beta";
         return (

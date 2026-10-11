@@ -1,10 +1,33 @@
 import { test, expect } from "@playwright/test";
 import { VIEWPORTS, PAGES } from "./viewports";
+import { VISIBLE_APPS } from "./apps";
 
 for (const page of PAGES) {
   for (const vp of VIEWPORTS) {
     test.describe(`${page.path} @ ${vp.name} (${vp.width}px)`, () => {
       test.use({ viewport: { width: vp.width, height: vp.height } });
+
+      test("lab mosaic: the featured card ends level with the rest of the grid", async ({ page: p }) => {
+        await p.goto(page.path);
+        const grid = await p.evaluate(() => {
+          const apps = document.querySelector<HTMLElement>("#lab .apps")!;
+          const cols = getComputedStyle(apps).gridTemplateColumns.split(" ").filter(Boolean).length;
+          const cards = Array.from(apps.querySelectorAll<HTMLElement>(":scope > .app")).map((card) => {
+            const r = card.getBoundingClientRect();
+            return { top: Math.round(r.top), bottom: Math.round(r.bottom), left: Math.round(r.left), right: Math.round(r.right) };
+          });
+          return { cols, cards };
+        });
+        const [featured, ...rest] = grid.cards;
+        // Las que comparten franja con la destacada: empiezan antes de que ella termine y van en otra columna.
+        // Las de filas posteriores (una 4.ª app, por ejemplo) no cuentan.
+        const peers = rest.filter((card) => card.top < featured!.bottom && card.left >= featured!.right);
+        test.skip(grid.cols < 2 || peers.length === 0, "una columna o ninguna tarjeta al lado: no hay mosaico que nivelar");
+        // Si la destacada reservara una fila que nadie llena, sobresaldría por debajo de las de su lado.
+        expect(featured!.bottom, "la tarjeta destacada no termina a la altura de las de su lado").toBe(
+          Math.max(...peers.map((card) => card.bottom)),
+        );
+      });
 
       test("no horizontal scroll", async ({ page: p }) => {
         await p.goto(page.path);
@@ -36,7 +59,7 @@ for (const page of PAGES) {
         await p.goto(page.path);
         await expect(p.locator("h1")).toBeVisible();
         await expect(p.locator(".hero .btn.primary")).toBeVisible();
-        await expect(p.locator(".apps .app")).toHaveCount(3);
+        await expect(p.locator(".apps .app")).toHaveCount(VISIBLE_APPS.length);
         await expect(p.locator(".contact .email")).toBeVisible();
         // Selector de idioma accesible en todos los anchos (cabecera y pie)
         const switchLinks = p.locator(`a[href="${page.lang === "es" ? "/en/" : "/"}"]`);

@@ -13,7 +13,7 @@ test("public/_headers sets the baseline security headers on every path", () => {
   expect(all["permissions-policy"]).toBe("camera=(), microphone=(), geolocation=()");
 });
 
-test("HSTS is sent for carellabs.com for at least a year, without includeSubDomains or preload", () => {
+test("HSTS lasts at least a year, without includeSubDomains or preload", () => {
   const hsts = headersFor("/*")["strict-transport-security"];
   expect(hsts, "public/_headers no envía Strict-Transport-Security en /*").toBeDefined();
   const directives = hsts!.split(";").map((d) => d.trim().toLowerCase());
@@ -87,7 +87,7 @@ test("the CSP lets nothing run or connect: scripts, connections, frames, workers
 });
 
 // Sin <script> en el HTML publicado: es lo que hace correcta una CSP que no permite scripts.
-test("the built HTML has no <script>, because the CSP does not allow scripts", () => {
+test("the built HTML has no <script> or inline event handlers, because the CSP does not allow scripts", () => {
   const pages = readdirSync("dist", { recursive: true })
     .map((file) => String(file).replaceAll("\\", "/"))
     .filter((file) => file.endsWith(".html"))
@@ -97,17 +97,29 @@ test("the built HTML has no <script>, because the CSP does not allow scripts", (
     expect.arrayContaining(["404.html", "en/index.html", "index.html"]),
   );
 
-  // Control positivo 2: el detector ve un <script> (en línea, con src, con atributos y con otra capitalización).
-  const hasScript = (html: string) => /<script\b/i.test(html);
-  for (const sample of ["<script>1</script>", '<script src="/a.js"></script>', '<SCRIPT type="module">']) {
+  // Control positivo 2: el detector ve un <script> (en línea, con src, con atributos y con otra capitalización)
+  // y un manejador en línea (onerror=, onClick=), que también es script y la CSP también bloquea.
+  const hasScript = (html: string) => /<script\b/i.test(html) || /<[^>]*\son[a-z]+\s*=/i.test(html);
+  // Control negativo: texto o atributos normales no cuentan como manejador.
+  for (const sample of ['<p> once = twice</p>', '<meta name="description" content="Persona=dato">', '<a href="/one=1">']) {
+    expect(hasScript(sample), `falso positivo en ${sample}`).toBe(false);
+  }
+  for (const sample of [
+    "<script>1</script>",
+    '<script src="/a.js"></script>',
+    '<SCRIPT type="module">',
+    '<img src="/a.png" onerror="x()">',
+    "<button type=button onClick='go()'>",
+  ]) {
     expect(hasScript(sample), `el detector no ve ${sample}`).toBe(true);
   }
 
   const withScript = pages.filter((file) => hasScript(readFileSync(`dist/${file}`, "utf8")));
   expect(
     withScript,
-    "La CSP de public/_headers no permite scripts (default-src 'none' y sin script-src). Si se añade un " +
-      "<script>, hay que revisar la CSP a la vez, o el navegador lo bloqueará.",
+    "La CSP de public/_headers no permite scripts ni manejadores en línea (default-src 'none' y sin script-src). " +
+      "Si se añade un <script> o un onclick=..., hay que revisar la CSP a la vez, o el navegador lo bloqueará. " +
+      '(Un JSON-LD, <script type="application/ld+json">, no se ejecuta, pero este test también lo marca: ajústalo entonces.)',
   ).toEqual([]);
 });
 

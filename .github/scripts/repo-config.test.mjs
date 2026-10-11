@@ -606,9 +606,11 @@ describe("public/.well-known/security.txt (RFC 9116)", () => {
 
   test("da como contacto el correo de seguridad y el reporte privado de GitHub", () => {
     const f = fields();
-    assert.ok(f.contact?.includes("mailto:security@carellabs.com"), "falta Contact: mailto:security@carellabs.com");
+    // Cada Contact se compara entero (no como subcadena): tiene que ser exactamente esa dirección.
+    const hasContact = (value) => (f.contact ?? []).some((contact) => contact === value);
+    assert.ok(hasContact("mailto:security@carellabs.com"), "falta Contact: mailto:security@carellabs.com");
     assert.ok(
-      f.contact?.includes("https://github.com/carellabs/carellabs-landing/security/advisories/new"),
+      hasContact("https://github.com/carellabs/carellabs-landing/security/advisories/new"),
       "falta el reporte privado de GitHub como Contact",
     );
   });

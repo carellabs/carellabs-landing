@@ -12,6 +12,27 @@ test("public/_headers sets the baseline security headers on every path", () => {
   expect(all["permissions-policy"]).toBe("camera=(), microphone=(), geolocation=()");
 });
 
+test("HSTS is sent for carellabs.com for at least a year, without includeSubDomains or preload", () => {
+  const hsts = headersFor("/*")["strict-transport-security"];
+  expect(hsts, "public/_headers no envía Strict-Transport-Security en /*").toBeDefined();
+  const directives = hsts!.split(";").map((d) => d.trim().toLowerCase());
+
+  // Control positivo: la directiva `max-age` está, se lee bien y dura al menos un año.
+  const maxAge = directives.find((d) => d.startsWith("max-age="));
+  expect(maxAge, "Strict-Transport-Security sin max-age").toBeDefined();
+  expect(Number(maxAge!.slice("max-age=".length))).toBeGreaterThanOrEqual(31_536_000);
+
+  // Ausencias. Los subdominios futuros (finanzas., barberia., closet.) quizá no sirvan HTTPS:
+  // con `includeSubDomains` quedarían inaccesibles, y `preload` es muy difícil de deshacer.
+  // Se añaden solo cuando todos los subdominios sirvan HTTPS.
+  expect(directives, "includeSubDomains dejaría inaccesibles los subdominios que no sirvan HTTPS").not.toContain(
+    "includesubdomains",
+  );
+  expect(directives, "preload es muy difícil de deshacer: no antes de que todos los subdominios sirvan HTTPS").not.toContain(
+    "preload",
+  );
+});
+
 test("the CSP is exactly as strict as this static site needs", () => {
   // Control positivo: se ha leído una política con contenido.
   const csp = parseCsp(siteCsp());

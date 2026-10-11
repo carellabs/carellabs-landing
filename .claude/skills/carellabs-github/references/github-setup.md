@@ -284,7 +284,7 @@ curl -sI "https://$HOST"
 curl -sI "https://$HOST/no-existe"     # 404, con content-security-policy y x-content-type-options
 ```
 
-Busca `content-security-policy` (con `default-src 'self'`, `img-src 'self'`, `form-action 'none'`...), `x-content-type-options`, `x-frame-options`, `referrer-policy` y `permissions-policy`. Y la caché de un archivo con hash:
+Busca `content-security-policy` (con `default-src 'self'`, `img-src 'self'`, `form-action 'none'`...), `x-content-type-options`, `x-frame-options`, `referrer-policy`, `permissions-policy` y `strict-transport-security`. Y la caché de un archivo con hash:
 
 ```bash
 ASSET="$(curl -s "https://$HOST" | grep -o '/_astro/[^"]*\.css' | head -n 1)"
@@ -312,7 +312,11 @@ curl -s https://carellabs.com | grep -c hola@carellabs.com        # 1 o más: co
 
 Si da `0` y en el HTML aparece `[email protected]`, Cloudflare tiene activa la *Email Address Obfuscation* y la web depende de su script para mostrar el correo. Desactívala **solo para este host** con una *Configuration Rule* (*Rules > Configuration Rules*, ajuste *Email Obfuscation* en off, condición: hostname igual a `carellabs.com`), en vez de en toda la zona ([doc](https://developers.cloudflare.com/waf/tools/scrape-shield/email-address-obfuscation/), [ajustes de Configuration Rules](https://developers.cloudflare.com/rules/configuration-rules/settings/)). Repite la comprobación para `/en/`.
 
-**HSTS: todavía no.** `public/_headers` no envía `Strict-Transport-Security` a propósito. Actívalo (en Cloudflare, *SSL/TLS > Edge Certificates*, o como cabecera) solo cuando **todos los subdominios** (`finanzas.`, `barberia.`, `closet.` y los futuros) sirvan HTTPS: con `includeSubDomains` los que no lo hagan quedan inaccesibles, y con `preload` es difícil dar marcha atrás ([doc](https://developers.cloudflare.com/ssl/edge-certificates/additional-options/http-strict-transport-security/)).
+**HSTS: solo para `carellabs.com`.** `public/_headers` envía `Strict-Transport-Security: max-age=31536000` (un año), sin `includeSubDomains` ni `preload`, a propósito: así el navegador exige HTTPS únicamente al dominio raíz. Va como cabecera del repositorio, así que no hace falta activarlo también en el panel de Cloudflare. Añade `includeSubDomains` (y, mucho después, `preload`) solo cuando **todos los subdominios** (`finanzas.`, `barberia.`, `closet.` y los futuros) sirvan HTTPS: con `includeSubDomains` los que no lo hagan quedan inaccesibles, y con `preload` es difícil dar marcha atrás ([doc](https://developers.cloudflare.com/ssl/edge-certificates/additional-options/http-strict-transport-security/)). Un test de `tests/headers.spec.ts` impide que se cuelen antes de tiempo. Para comprobarlo:
+
+```bash
+curl -sI "https://$HOST" | grep -i strict-transport-security     # max-age=31536000, sin includeSubDomains ni preload
+```
 
 ## Primer PR de prueba
 

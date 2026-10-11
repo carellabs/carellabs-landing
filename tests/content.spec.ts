@@ -2,8 +2,13 @@ import { readFileSync } from "node:fs";
 import { test, expect } from "@playwright/test";
 import { HERO_FOCUS, PAGES } from "./viewports";
 import { PLACEHOLDERS } from "./placeholders";
+import { APPS, HIDDEN_APPS, VISIBLE_APPS } from "./apps";
 
-const apps: { url: string }[] = JSON.parse(readFileSync("src/data/apps.json", "utf8"));
+test("apps.json: `hidden`, when present, is a boolean", () => {
+  for (const app of APPS) {
+    if ("hidden" in app) expect(typeof app.hidden, `${app.name}: hidden debe ser true o false`).toBe("boolean");
+  }
+});
 
 const GROUP_TITLES = {
   es: { software: "Desarrollo de software", before: "Antes del software" },
@@ -79,7 +84,7 @@ for (const pg of PAGES) {
 
   test(`${pg.path}: each app's stack list is labelled "Stack"`, async ({ page }) => {
     await page.goto(pg.path);
-    await expect(page.getByRole("list", { name: "Stack" })).toHaveCount(apps.length);
+    await expect(page.getByRole("list", { name: "Stack" })).toHaveCount(VISIBLE_APPS.length);
   });
 
   test(`${pg.path}: og:image points to a PNG that the site serves`, async ({ page, request }) => {
@@ -124,10 +129,21 @@ for (const pg of PAGES) {
   test(`${pg.path}: each app shows the hostname of its url`, async ({ page }) => {
     await page.goto(pg.path);
     const hosts = page.locator(".apps .app .host");
-    await expect(hosts).toHaveCount(apps.length);
+    await expect(hosts).toHaveCount(VISIBLE_APPS.length);
     await expect(hosts.first()).toHaveText("finanzas.carellabs.com");
-    for (const [i, app] of apps.entries()) {
+    for (const [i, app] of VISIBLE_APPS.entries()) {
       await expect(hosts.nth(i)).toHaveText(new URL(app.url).hostname);
+    }
+  });
+
+  test(`${pg.path}: hidden apps are not shown, neither their name nor their hostname`, async ({ page }) => {
+    await page.goto(pg.path);
+    // Control positivo: el laboratorio está y muestra justo las apps visibles.
+    await expect(page.locator("#lab .apps .app")).toHaveCount(VISIBLE_APPS.length);
+    const html = await page.content();
+    for (const app of HIDDEN_APPS) {
+      expect(html, `${app.name} está oculta en apps.json y sigue en la página`).not.toContain(app.name);
+      expect(html, `${app.name}: su dominio sigue en la página`).not.toContain(new URL(app.url).hostname);
     }
   });
 

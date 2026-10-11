@@ -44,6 +44,8 @@ Cada puesto de `experience.items` (en `es.json` y `en.json`) lleva `"group": "so
 - `in-progress` → se muestra sin enlace
 - `beta` / `live` → el nombre enlaza a `url`
 
+Además, con `"hidden": true` la app sigue en el fichero, pero la web no la muestra (para ocultarla de momento sin borrarla). Para volver a mostrarla, quita esa línea. Ojo: el repositorio es público, así que su nombre y su descripción siguen visibles en GitHub.
+
 En cada app se muestra el subdominio, derivado del hostname de `url`.
 
 ## Tests
@@ -61,9 +63,9 @@ Los tests levantan su propio `astro preview` en el puerto **4322** (el `npm run 
 
 | Suite | Qué comprueba |
 |---|---|
-| `tests/responsive.spec.ts` | Sin scroll horizontal ni elementos fuera del viewport en 320/390/768/1024/1440 px; contenido clave visible; tamaño de letra y longitud de línea legibles; objetivos táctiles ≥ 44 px en móvil |
+| `tests/responsive.spec.ts` | Sin scroll horizontal ni elementos fuera del viewport en 320/390/768/1024/1440 px; contenido clave visible; tamaño de letra y longitud de línea legibles; objetivos táctiles ≥ 44 px en móvil; en el mosaico del laboratorio, la tarjeta destacada termina a la altura del resto |
 | `tests/a11y.spec.ts` | Cero violaciones WCAG 2.1 AA (axe-core) en móvil y escritorio, ambos idiomas y ambos esquemas de color (oscuro y claro); además falla si axe no puede evaluar un contraste (`incomplete`), salvo los textos de la tarjeta FinApp, que se comprueban a mano en `theme.spec.ts` |
-| `tests/content.spec.ts` | Idioma correcto por ruta, selector de idioma (URL exacta y `lang`, en cabecera y pie), canonical y `hreflang` con su valor exacto, `og:url`, anclas internas, apps en desarrollo sin enlace, subdominio de cada app, trayectoria en dos grupos con un único puesto actual, sin raya larga (U+2014) ni media (U+2013), enlace «saltar al contenido», 404 (textos y no indexable: `noindex` y sin canonical, `hreflang` ni `og:*`); en CI además bloquea placeholders (`TU_USUARIO`, `lorem ipsum`, `TODO`) y exige que `og:image` sea un PNG que el sitio sirve |
+| `tests/content.spec.ts` | Idioma correcto por ruta, selector de idioma (URL exacta y `lang`, en cabecera y pie), canonical y `hreflang` con su valor exacto, `og:url`, anclas internas, apps en desarrollo sin enlace, apps ocultas (`hidden`) sin rastro en la página, subdominio de cada app, trayectoria en dos grupos con un único puesto actual, sin raya larga (U+2014) ni media (U+2013), enlace «saltar al contenido», 404 (textos y no indexable: `noindex` y sin canonical, `hreflang` ni `og:*`); en CI además bloquea placeholders (`TU_USUARIO`, `lorem ipsum`, `TODO`) y exige que `og:image` sea un PNG que el sitio sirve |
 | `tests/theme.spec.ts` | `color-scheme` y `theme-color` por esquema, fondo según `prefers-color-scheme`, contraste del botón principal (reposo y hover), de los rellenos ámbar (WCAG 1.4.11) y de los textos de la tarjeta FinApp sobre su fondo de puntos |
 | `tests/semantics.spec.ts` | El enlace de salto mueve el foco a `main`, el anillo de foco sigue visible en enlaces y no rodea todo `main`, todas las listas conservan `role="list"`, y el separador `/` de las especialidades no se anuncia |
 | `tests/i18n.spec.ts` | `es.json` y `en.json` con las mismas claves, ninguna clave sin uso, ningún texto de interfaz escrito a mano en las plantillas |

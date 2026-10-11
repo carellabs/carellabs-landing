@@ -50,6 +50,24 @@ function checkName(id, block) {
   return /^ {4}name:\s*(.+?)\s*$/m.exec(block)?.[1] ?? id;
 }
 
+/**
+ * Claves de primer nivel del bloque `on:` de un workflow.
+ * @param {string} text
+ * @returns {string[]}
+ */
+function triggersOf(text) {
+  const lines = text.split("\n");
+  const start = lines.findIndex((l) => /^on:\s*$/.test(l));
+  assert.ok(start >= 0, "sin bloque `on:`");
+  const keys = [];
+  for (const line of lines.slice(start + 1)) {
+    if (/^\S/.test(line)) break;
+    const key = /^ {2}([a-z_]+):/.exec(line);
+    if (key) keys.push(key[1]);
+  }
+  return keys;
+}
+
 describe("workflows: acciones", () => {
   test("toda acción de terceros está fijada a un SHA de 40 caracteres, con su versión en un comentario", () => {
     const usos = [];
@@ -407,20 +425,6 @@ describe("dependabot.yml", () => {
 });
 
 describe("workflows: eventos", () => {
-  /** Claves de primer nivel del bloque `on:`. */
-  function triggersOf(text) {
-    const lines = text.split("\n");
-    const start = lines.findIndex((l) => /^on:\s*$/.test(l));
-    assert.ok(start >= 0, "sin bloque `on:`");
-    const keys = [];
-    for (const line of lines.slice(start + 1)) {
-      if (/^\S/.test(line)) break;
-      const key = /^ {2}([a-z_]+):/.exec(line);
-      if (key) keys.push(key[1]);
-    }
-    return keys;
-  }
-
   test("ningún workflow usa eventos que ejecuten código del PR con privilegios (pull_request_target, workflow_run)", () => {
     // El privilegio mínimo de pr-policy.yml y ci.yml descansa en usar `pull_request`.
     const allowed = new Set(["pull_request", "push", "schedule", "workflow_dispatch"]);
@@ -435,6 +439,95 @@ describe("workflows: eventos", () => {
     const cron = /cron:\s*"([^"]+)"/.exec(read(".github/workflows/audit.yml"))?.[1];
     assert.ok(cron, "audit.yml sin cron");
     assert.notEqual(cron.split(/\s+/)[0], "0");
+  });
+});
+
+describe("codeql.yml: análisis de código como workflow (configuración avanzada)", () => {
+  const FILE = ".github/workflows/codeql.yml";
+  /** El texto del workflow, sin las líneas de comentario (para no confundir una explicación con una regla). */
+  const codeql = () => {
+    assert.ok(workflows().includes("codeql.yml"), `falta ${FILE}`);
+    return read(FILE).replace(/^\s*#.*$/gm, "");
+  };
+  const cron = (file) => {
+    assert.ok(workflows().includes(file.split("/").pop()), `falta ${file}`);
+    return /cron:\s*"([^"]+)"/.exec(read(file))?.[1];
+  };
+
+  test("analiza actions y javascript-typescript, cada uno con su categoría, sin compilar", () => {
+    const text = codeql();
+    const lista = /^\s+language:\s*\[([^\]]*)\]\s*$/m.exec(text)?.[1];
+    assert.ok(lista, "sin matriz `language`");
+    assert.deepEqual(
+      lista.split(",").map((l) => l.trim()).sort(),
+      ["actions", "javascript-typescript"],
+    );
+    assert.match(text, /^\s+languages:\s*\$\{\{\s*matrix\.language\s*\}\}\s*$/m);
+    assert.match(text, /^\s+build-mode:\s*none\s*$/m);
+    assert.match(text, /^\s+category:\s*"\/language:\$\{\{\s*matrix\.language\s*\}\}"\s*$/m);
+    // Si un lenguaje falla, el otro termina igualmente su análisis.
+    assert.match(text, /^\s+fail-fast:\s*false\s*$/m);
+  });
+
+  test("se ejecuta en pull_request y push (a main) y en un cron semanal, y en nada más", () => {
+    const text = codeql();
+    assert.deepEqual(triggersOf(text).sort(), ["pull_request", "push", "schedule"]);
+    assert.match(text, /^ {2}push:\s*\n\s+branches:\s*\[main\]\s*$/m);
+    assert.match(text, /^ {2}pull_request:\s*\n\s+branches:\s*\[main\]\s*$/m);
+    assert.match(text, /^ {4}-\s*cron:\s*"[^"]+"/m);
+  });
+
+  test("el cron no cae en el minuto 0 y no coincide con el de audit.yml", () => {
+    const mio = cron(FILE);
+    const auditoria = cron(".github/workflows/audit.yml");
+    assert.ok(mio, "codeql.yml sin cron");
+    assert.ok(auditoria, "audit.yml sin cron");
+    assert.match(mio, /^\d+ \d+ \* \* [0-6]$/, "debe ser semanal (un día de la semana)");
+    assert.notEqual(mio.split(/\s+/)[0], "0", "el minuto 0 es el de más carga en Actions");
+    assert.notEqual(mio, auditoria);
+  });
+
+  test("el workflow es de solo lectura y únicamente su job escribe en security-events", () => {
+    const text = codeql();
+    const nivelWorkflow = /^permissions:\s*\n((?: {2}\S.*\n)+)/m.exec(text)?.[1];
+    assert.equal(nivelWorkflow, "  contents: read\n");
+
+    const jobs = jobsOf(text);
+    assert.deepEqual(Object.keys(jobs), ["analyze"]);
+    assert.match(
+      jobs.analyze,
+      /^ {4}permissions:\s*\n {6}contents:\s*read\s*\n {6}security-events:\s*write\s*\n(?! {6}\S)/m,
+    );
+    // Es la única escritura de todo el fichero.
+    assert.equal([...text.matchAll(/:\s*write\b/g)].length, 1);
+    assert.equal([...text.matchAll(/security-events:\s*write/g)].length, 1);
+  });
+
+  test("init y analyze usan la misma versión fijada de codeql-action, en ese orden", () => {
+    const usos = [...codeql().matchAll(/uses:\s*github\/codeql-action\/(\w+)@([0-9a-f]{40})\s+#\s*v?(\d[\w.]*)/g)];
+    assert.deepEqual(usos.map((m) => m[1]), ["init", "analyze"]);
+    assert.equal(new Set(usos.map((m) => m[2])).size, 1, "init y analyze con SHA distintos");
+    assert.equal(new Set(usos.map((m) => m[3])).size, 1, "init y analyze con versiones distintas");
+  });
+
+  test("tiene la misma concurrencia que ci.yml y un límite de tiempo", () => {
+    const bloque = (t) => /^concurrency:\s*\n((?: {2}\S.*\n)+)/m.exec(t)?.[1];
+    assert.ok(bloque(codeql()), "sin bloque `concurrency:`");
+    assert.equal(bloque(codeql()), bloque(read(".github/workflows/ci.yml").replace(/^\s*#.*$/gm, "")));
+    assert.match(jobsOf(codeql()).analyze, /^ {4}timeout-minutes:\s*\d+\s*$/m);
+  });
+
+  test("es informativo: ningún job suyo se llama como un check obligatorio y el ruleset no lo exige", () => {
+    for (const [id, block] of Object.entries(jobsOf(codeql()))) {
+      assert.ok(!REQUIRED_CHECKS.includes(id), `el job ${id} se llama como un check obligatorio`);
+      assert.ok(!REQUIRED_CHECKS.includes(checkName(id, block)), `el job ${id} se muestra como un check obligatorio`);
+    }
+    const ruleset = JSON.parse(read(".claude/skills/carellabs-github/assets/ruleset-main.json"));
+    const exigidos = ruleset.rules
+      .find((r) => r.type === "required_status_checks")
+      .parameters.required_status_checks.map((c) => c.context);
+    assert.deepEqual(exigidos.sort(), [...REQUIRED_CHECKS].sort());
+    assert.ok(!exigidos.some((c) => /analy|codeql/i.test(c)), "el ruleset exige un check de CodeQL");
   });
 });
 

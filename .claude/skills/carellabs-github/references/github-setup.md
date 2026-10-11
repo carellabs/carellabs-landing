@@ -139,7 +139,7 @@ gh api "repos/$REPO/rules/branches/main" --jq '.[].type'
 
 Esperado: un ruleset `main` con `enforcement: "active"` y los cinco tipos de regla.
 
-Los nombres de los checks (`test`, `lighthouse`, `pr-policy`) son los `name` de los jobs de `ci.yml` y `pr-policy.yml`. El workflow `pr-policy.yml` tiene además un job `label` (pone la etiqueta `type:*`) que **no** es obligatorio, y `audit.yml` (auditoría semanal completa de dependencias) tampoco. Si al abrir el primer PR alguno de los tres obligatorios se queda en "Expected - Waiting for status to be reported", el contexto no coincide con el nombre real del check: corrígelo en el ruleset (ver "No verificado").
+Los nombres de los checks (`test`, `lighthouse`, `pr-policy`) son los `name` de los jobs de `ci.yml` y `pr-policy.yml`. El workflow `pr-policy.yml` tiene además un job `label` (pone la etiqueta `type:*`) que **no** es obligatorio, y `audit.yml` (auditoría semanal completa de dependencias) y `codeql.yml` (análisis de código, paso 4.3) tampoco. Si al abrir el primer PR alguno de los tres obligatorios se queda en "Expected - Waiting for status to be reported", el contexto no coincide con el nombre real del check: corrígelo en el ruleset (ver "No verificado").
 
 Para deshacerlo: `gh api -X DELETE "repos/$REPO/rulesets/<id>"`.
 
@@ -193,6 +193,27 @@ Comprobación:
 ```bash
 gh api "repos/$REPO/actions/permissions" --jq '{enabled, sha_pinning_required}'                 # true, true
 gh api "repos/$REPO/actions/permissions/fork-pr-contributor-approval" --jq .approval_policy      # all_external_contributors
+```
+
+### 4.3 CodeQL: como workflow, con la «default setup» desactivada
+
+*Este apartado se añadió después de la primera ejecución: todavía no se ha ejecutado contra el repositorio real (ver "No verificado").*
+
+CodeQL va como **workflow** (*configuración avanzada*), no con la «default setup» de GitHub. `.github/workflows/codeql.yml` analiza `actions` (los propios workflows) y `javascript-typescript` (scripts, tests y configuración), sin compilar (`build-mode: none`), en cada PR a `main`, en cada push a `main` y cada miércoles. Sus permisos son los mínimos: `contents: read` en el workflow y `security-events: write` solo en su job.
+
+**No es un check obligatorio.** El ruleset de `main` sigue exigiendo solo `test`, `lighthouse` y `pr-policy` (`assets/ruleset-main.json` no cambia). Es un análisis informativo: sus resultados se ven en *Security > Code scanning*.
+
+La «default setup» tiene que quedar **desactivada**. Si se activa, GitHub rechaza los resultados que sube el workflow y el análisis falla al enviarlos. Se comprueba, y se apaga si hiciera falta ([REST de code scanning](https://docs.github.com/en/rest/code-scanning/code-scanning)):
+
+```bash
+gh api "repos/$REPO/code-scanning/default-setup" --jq .state                       # not-configured
+gh api -X PATCH "repos/$REPO/code-scanning/default-setup" -f state=not-configured   # solo si salió "configured"
+```
+
+Tras la primera ejecución del workflow, deben aparecer las dos categorías:
+
+```bash
+gh api "repos/$REPO/code-scanning/analyses" --jq '.[].category' | sort -u    # /language:actions y /language:javascript-typescript
 ```
 
 ### Opcional: token de workflows de solo lectura
@@ -353,3 +374,4 @@ Lo que queda de verdad pendiente:
 - **`sha_pinning_required`**: todas las acciones están fijadas por SHA (incluida `treosh/lighthouse-ci-action`). Si una ejecución falla por una acción "no fijada", es una acción nueva o un cambio de Dependabot que perdió el SHA.
 - **Ruta exacta de los menús de la interfaz**: importación del repositorio en Workers (paso 6.1) y *Configuration Rules* (paso 7). Las interfaces se reorganizan con frecuencia.
 - **El workflow semanal `audit.yml`**: GitHub desactiva los workflows programados de un repositorio público tras 60 días sin actividad; si deja de llegar el aviso, actívalo de nuevo desde la pestaña *Actions*.
+- **CodeQL (paso 4.3)**: el workflow y los comandos de la «default setup» están escritos, no ejecutados contra GitHub. Se confirma con el primer PR que incluya `codeql.yml`: que los dos jobs `analyze` terminan en verde, que *Security > Code scanning* muestra las categorías `/language:actions` y `/language:javascript-typescript`, y cómo se comporta con los PR de Dependabot y de forks (su token es de solo lectura, así que subir resultados puede no estar permitido; al no ser obligatorio, no bloquea la fusión). Como `audit.yml`, su ejecución semanal se desactiva tras 60 días sin actividad en el repositorio.

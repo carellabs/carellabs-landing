@@ -1,0 +1,55 @@
+name: CodeQL
+
+# Análisis estático del código con CodeQL, como workflow (configuración avanzada):
+# revisa los propios workflows (`actions`) y el JavaScript/TypeScript del repositorio
+# (scripts, tests y configuración). Los resultados salen en Security > Code scanning.
+#
+# NO es un check obligatorio: el ruleset de `main` exige solo test, lighthouse y
+# pr-policy. Es un análisis informativo; si encuentra algo, se ve en la pestaña Security.
+#
+# La «default setup» de CodeQL de GitHub tiene que estar DESACTIVADA. Con ella activa,
+# GitHub rechaza los resultados de este workflow (ver el apartado 4.3 de
+# .claude/skills/carellabs-github/references/github-setup.md).
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "41 5 * * 3" # miércoles, 05:41 UTC (fuera de la hora en punto y lejos del lunes de audit.yml)
+
+permissions:
+  contents: read
+
+# Igual que ci.yml: en un PR, un push nuevo a la misma rama cancela la ejecución anterior;
+# en `main` y en el cron cada ejecución tiene su propio grupo (por SHA).
+concurrency:
+  group: "${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}"
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Único job con permiso de escritura, y solo sobre los resultados del escaneo
+    # (security-events). El código del repositorio se lee, no se escribe.
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      # Si un lenguaje falla, el otro termina igualmente su análisis.
+      fail-fast: false
+      matrix:
+        language: [actions, javascript-typescript]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # `build-mode: none`: ambos lenguajes se analizan sin compilar nada.
+      - uses: github/codeql-action/init@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+      - uses: github/codeql-action/analyze@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        with:
+          category: "/language:${{ matrix.language }}"

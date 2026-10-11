@@ -94,7 +94,7 @@ La issue es obligatoria **solo** para `feat` y `fix` (con `Closes #N` en el cuer
 - [x] Email de contacto: `hola@carellabs.com` tiene su regla en el Email Routing de Cloudflare
 - [x] Imagen de previsualización en redes: `public/og-es.png` y `public/og-en.png` (1200×630, una por idioma con su titular). Se regeneran con `npm run og` si cambian los textos del hero
 - [x] Configurar GitHub (repo, ruleset, etiquetas, seguridad) siguiendo [`github-setup.md`](.claude/skills/carellabs-github/references/github-setup.md)
-- [x] Publicar en Cloudflare Workers: fase 1 comprobada en `*.workers.dev`; fase 2 con el dominio `carellabs.com` en `wrangler.jsonc` (comprobaciones del apartado 7 de la guía tras el despliegue)
+- [x] Publicar en Cloudflare Workers: fase 1 comprobada en `*.workers.dev` y fase 2 comprobada en `carellabs.com` (apartado 7 de la guía)
 - [x] Propietario en GitHub: cuenta personal `carellabs` (variable `OWNER` de la guía)
 
 ## Despliegue

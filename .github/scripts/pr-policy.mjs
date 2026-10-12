@@ -47,8 +47,30 @@ const TITLE_RE = new RegExp(
  */
 const CLOSING_RE = /\b(close[sd]?|fix(e[sd])?|resolve[sd]?):?\s+#[1-9]\d*\b/i;
 
-/** Comentarios HTML: la plantilla de PR los usa para dar instrucciones. */
-const HTML_COMMENT_RE = /<!--[\s\S]*?-->/g;
+/**
+ * Quita los comentarios HTML `<!-- -->` (la plantilla de PR los usa para dar instrucciones):
+ * de izquierda a derecha, cada `<!--` hasta el primer `-->` que lo cierra, y uno sin cerrar
+ * oculta todo hasta el final. No se repite la pasada: en `<!-<!-- x -->- texto -->` el `<!-`
+ * no abre nada y `- texto -->` se ve, también en GitHub.
+ *
+ * Límites conocidos (es una ayuda para quien abre el PR, no una frontera de seguridad):
+ * - Con un `<!--` sin cerrar es más estricta que GitHub, que solo oculta lo que sigue si el
+ *   `<!--` abre línea fuera de bloques de código. Escribe `Closes #N` antes de cualquier `<!--`.
+ * - No quita otras construcciones que GitHub tampoco pinta (`<?…?>`, `<!X…>`, `<![CDATA[…]]>`,
+ *   `[//]: # (…)`): una referencia escondida ahí cuenta como visible.
+ */
+export function stripHtmlComments(text) {
+  let visible = "";
+  let from = 0;
+  for (let open = text.indexOf("<!--"); open !== -1; open = text.indexOf("<!--", from)) {
+    visible += text.slice(from, open);
+    // `<!-->` y `<!--->` también son comentarios (vacíos): el cierre puede solaparse con la apertura.
+    const close = text.indexOf("-->", open + 2);
+    if (close === -1) return visible;
+    from = close + 3;
+  }
+  return visible + text.slice(from);
+}
 
 /** Tipos de cambio que exigen issue. */
 const ISSUE_REQUIRED = new Set(["feat", "fix"]);
@@ -112,7 +134,7 @@ export function evaluatePr({ title, body } = {}) {
   const label = match.groups.bang ? BREAKING_LABEL : LABELS[type];
 
   // Sin comentarios HTML: las instrucciones de la plantilla no cuentan como referencia.
-  const visibleBody = (typeof body === "string" ? body : "").replace(HTML_COMMENT_RE, "");
+  const visibleBody = stripHtmlComments(typeof body === "string" ? body : "");
 
   const errors = [];
   if (ISSUE_REQUIRED.has(type) && !CLOSING_RE.test(visibleBody)) {

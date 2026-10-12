@@ -1,6 +1,6 @@
 # Configuración de GitHub de `carellabs-landing` (capa 1)
 
-> **Pasos 0 a 4 ejecutados contra el repositorio real el 10-oct-2026, y los pasos 6 y 7 (Cloudflare Workers, fases 1 y 2) el 10 y el 11-oct-2026, con todas sus comprobaciones como se esperaba (ver "Verificado en la primera ejecución", al final). El apartado 4.3 (CodeQL) se añadió después y su workflow aún no se ha ejecutado.**
+> **Pasos 0 a 4 ejecutados contra el repositorio real el 10-oct-2026, y los pasos 6 y 7 (Cloudflare Workers, fases 1 y 2) el 10 y el 11-oct-2026, con todas sus comprobaciones como se esperaba (ver "Verificado en la primera ejecución", al final). El apartado 4.3 (CodeQL) se añadió después; su workflow funciona desde el 11-oct-2026.**
 > Los puntos que la documentación no deja cerrados (o que dependen de la interfaz) están en "No verificado", al final. Antes de ejecutar un paso, comprueba que la documentación enlazada sigue diciendo lo mismo.
 
 Se ejecuta **una sola vez**, por una persona (no por un agente), cuando:
@@ -197,7 +197,7 @@ gh api "repos/$REPO/actions/permissions/fork-pr-contributor-approval" --jq .appr
 
 ### 4.3 CodeQL: como workflow, con la «default setup» desactivada
 
-*Este apartado se añadió después de la primera ejecución: el workflow todavía no se ha ejecutado contra el repositorio real (ver "No verificado").*
+*Este apartado se añadió después de la primera ejecución. El workflow funciona desde el PR #7 (ver "Verificado").*
 
 CodeQL va como **workflow** (*configuración avanzada*), no con la «default setup» de GitHub. `.github/workflows/codeql.yml` analiza `actions` (los propios workflows) y `javascript-typescript` (scripts, tests y configuración), sin compilar (`build-mode: none`), en cada PR a `main`, en cada push a `main` y cada miércoles. Sus permisos son los mínimos: `contents: read` en el workflow y `security-events: write` solo en su job.
 
@@ -214,6 +214,12 @@ Tras la primera ejecución del workflow, deben aparecer las dos categorías:
 
 ```bash
 gh api "repos/$REPO/code-scanning/analyses" --jq '.[].category' | sort -u    # /language:actions y /language:javascript-typescript
+```
+
+**Lo que ve un PR no es todo.** En un PR, CodeQL solo informa de lo que introduce ese PR. Las alertas de código que el PR no toca salen en el análisis completo de `main` (y en el semanal). Para ver las abiertas:
+
+```bash
+gh api "repos/$REPO/code-scanning/alerts?state=open" --jq '.[] | "#\(.number) \(.rule.id) \(.most_recent_instance.location.path):\(.most_recent_instance.location.start_line)"'
 ```
 
 ### Opcional: token de workflows de solo lectura
@@ -379,6 +385,10 @@ Los pasos 0 a 4 se ejecutaron contra el repositorio real y cada comprobación de
 - **Caché DNS negativo**: justo después de publicar, el router siguió respondiendo un rato que `carellabs.com` no existía, aunque Cloudflare y Google ya lo resolvían (paso 7).
 - **CAA** (paso 6.2): con solo el registro `iodef`, Cloudflare añadió `issue` e `issuewild` para `letsencrypt.org`, `pki.goog`, `ssl.com`, `comodoca.com` (Sectigo) y `digicert.com`. El certificado que se sirve es de Google Trust Services (`pki.goog`), que está en la lista.
 - **`www` al dominio raíz** (paso 6.2): `https://www.carellabs.com/en/?x=1&y=2` responde 301 a `https://carellabs.com/en/?x=1&y=2` (conserva ruta y query), y `http://www…` hace dos saltos (primero a HTTPS, luego al dominio raíz) y termina en 200. `www` no envía HSTS. El panel avisó de que `www` quizá no pasaba por el proxy aunque el DNS público ya devolvía IPs de Cloudflare: era una falsa alarma.
+- **CodeQL** (paso 4.3, desde el PR #7): los dos jobs `analyze` terminan en verde en los PR y en `main`, y *Security > Code scanning* muestra `/language:actions` y `/language:javascript-typescript`. En los PR informó de 0 resultados, pero el análisis completo de `main` encontró 6 alertas en código que esos PR no tocaban (tests y `pr-policy.mjs`). Se corrigieron en el mismo cambio que añadió esta nota:
+  - `pr-policy` daba por visible una referencia de cierre dentro de un comentario HTML **sin cerrar**. Ahora la descarta, y lee los comentarios de izquierda a derecha sin repetir la pasada: repetirla, que es lo que sugiere CodeQL, rechazaría referencias que sí se ven. Es una ayuda, no una frontera de seguridad. Con un `<!--` literal sin cerrar es más estricta que GitHub (escribe `Closes #N` antes), y no quita otras construcciones que GitHub tampoco pinta (`<?…?>`, `<![CDATA[…]]>`, `[//]: # (…)`).
+  - El test de i18n no quitaba un `<SCRIPT>` en mayúsculas ni un `</script >` con espacio.
+  - La comprobación de los `Contact` de `security.txt` era un falso positivo (comparaba elementos de una lista, no subcadenas). Ahora la comparación exacta es explícita.
 - **«Default setup» de CodeQL** (paso 4.3): la consulta devolvió `not-configured`, como debe estar para que el workflow pueda subir sus resultados.
 
 ## No verificado
@@ -389,4 +399,4 @@ Lo que queda de verdad pendiente:
 - **`sha_pinning_required`**: todas las acciones están fijadas por SHA (incluida `treosh/lighthouse-ci-action`). Si una ejecución falla por una acción "no fijada", es una acción nueva o un cambio de Dependabot que perdió el SHA.
 - **Ruta exacta de los menús de la interfaz**: importación del repositorio en Workers (paso 6.1) y *Configuration Rules* (paso 7). Las interfaces se reorganizan con frecuencia.
 - **El workflow semanal `audit.yml`**: GitHub desactiva los workflows programados de un repositorio público tras 60 días sin actividad; si deja de llegar el aviso, actívalo de nuevo desde la pestaña *Actions*.
-- **CodeQL (paso 4.3)**: el workflow está escrito, pero aún no se ha ejecutado en GitHub (la «default setup» sí se comprobó: ver "Verificado"). Se confirma con el primer PR que incluya `codeql.yml`: que los dos jobs `analyze` terminan en verde, que *Security > Code scanning* muestra las categorías `/language:actions` y `/language:javascript-typescript`, y cómo se comporta con los PR de Dependabot y de forks (su token es de solo lectura, así que subir resultados puede no estar permitido; al no ser obligatorio, no bloquea la fusión). Como `audit.yml`, su ejecución semanal se desactiva tras 60 días sin actividad en el repositorio.
+- **CodeQL con PR de Dependabot y de forks** (paso 4.3): falta ver cómo se comporta (su token es de solo lectura, así que subir resultados puede no estar permitido; al no ser obligatorio, no bloquea la fusión). Como `audit.yml`, su ejecución semanal se desactiva tras 60 días sin actividad en el repositorio.

@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { evaluatePr } from "./pr-policy.mjs";
+import { evaluatePr, stripHtmlComments } from "./pr-policy.mjs";
 
 const SCRIPT = join(dirname(fileURLToPath(import.meta.url)), "pr-policy.mjs");
 const WITH_ISSUE = "Closes #12";
@@ -157,6 +157,8 @@ describe("evaluatePr: referencia de cierre en feat y fix", () => {
     "Closes #12 <!-- ok -->",
     "<!-- uno --> <!-- dos -->\nCloses #12",
     "<!-- uno -->\nCloses #12\n<!-- dos -->",
+    // `<!-` no abre comentario: el comentario es `<!-- x -->` y lo que sigue se ve en GitHub.
+    "<!-<!-- x -->- Closes #12 -->",
   ];
   const sinReferencia = [
     ["cuerpo vacio", ""],
@@ -181,6 +183,9 @@ describe("evaluatePr: referencia de cierre en feat y fix", () => {
     ["referencia en un comentario y otra palabra clave sin numero fuera", "<!-- Closes #12 -->\nCloses #"],
     ["dos puntos pero sin numero", "Closes: #"],
     ["referencia dentro del SEGUNDO de dos comentarios", "<!-- uno -->\n<!-- Closes #12 -->"],
+    // Sin `-->`, GitHub oculta todo hasta el final: la referencia no se ve.
+    ["referencia en un comentario sin cerrar", "<!-- nota\nCloses #12"],
+    ["referencia tras un comentario cerrado y dentro de otro sin cerrar", "<!-- uno -->\n<!-- Closes #12"],
   ];
 
   for (const tipo of ["feat", "fix"]) {
@@ -213,6 +218,28 @@ describe("evaluatePr: referencia de cierre en feat y fix", () => {
     assert.equal(r.ok, false);
     assert.equal(r.label, "type:feature");
   });
+});
+
+describe("stripHtmlComments: quita los comentarios HTML <!-- -->", () => {
+  const casos = [
+    ["cadena vacía", "", ""],
+    ["sin comentarios", "texto visible", "texto visible"],
+    ["un `-->` suelto se ve", "a --> b", "a --> b"],
+    ["comentario vacío <!---->", "<!---->x", "x"],
+    ["sin cerrar, con saltos CRLF", "a\r\n<!-- oculto\r\nb", "a\r\n"],
+    // Conservador a propósito: GitHub mostraría `M` (el `<!--` no abre línea); aquí queda oculto.
+    ["`<!--` sin cerrar a mitad de línea también oculta lo que sigue", "x <!-- a\nM", "x "],
+    ["comentario cerrado", "a <!-- oculto --> b", "a  b"],
+    ["dos comentarios", "<!-- 1 -->a<!-- 2 -->b", "ab"],
+    ["comentario multilínea", "a\n<!--\noculto\n-->\nb", "a\n\nb"],
+    ["sin cerrar: oculta hasta el final", "a <!-- oculto\nb", "a "],
+    ["comentario vacío <!-->", "a<!-->b", "ab"],
+    ["comentario vacío <!--->", "a<!--->b", "ab"],
+    ["`<!-` no abre comentario", "<!-<!-- x -->- y -->", "<!-- y -->"],
+  ];
+  for (const [nombre, entrada, esperado] of casos) {
+    test(nombre, () => assert.equal(stripHtmlComments(entrada), esperado));
+  }
 });
 
 describe("evaluatePr: el resto de tipos no exige issue", () => {

@@ -28,9 +28,22 @@ function astroFiles(dir: string): string[] {
 
 /** La parte de marcado de un .astro: sin el frontmatter (`---`), ni <style> ni <script>. */
 function templateOf(source: string): string {
-  const body = source.startsWith("---") ? source.slice(source.indexOf("\n---", 3) + 4) : source;
-  return body.replace(/<style[\s\S]*?<\/style>/g, "").replace(/<script[\s\S]*?<\/script>/g, "");
+  let body = source.startsWith("---") ? source.slice(source.indexOf("\n---", 3) + 4) : source;
+  // En mayúsculas o minúsculas y con lo que sea dentro de la etiqueta de cierre (`</script >`).
+  // Se repite hasta que no quede ninguno: al quitar un bloque, los restos podrían formar otro.
+  const blocks = /<(style|script)\b[\s\S]*?<\/\1\b[^>]*>/gi;
+  for (let previous = ""; previous !== body; ) {
+    previous = body;
+    body = body.replace(blocks, "");
+  }
+  return body;
 }
+
+test("templateOf drops <style> and <script> blocks in any case and with spaces in the closing tag", () => {
+  expect(templateOf('<p>a</p><SCRIPT>x()</SCRIPT ><style media="print">p{}</style>b')).toBe("<p>a</p>b");
+  // Un bloque dentro de otro no deja restos.
+  expect(templateOf("a<scr<script>1</script>ipt>2</script>b")).toBe("ab");
+});
 
 test("es.json and en.json have exactly the same keys", () => {
   const es = leafPaths(messages("es"));

@@ -637,10 +637,15 @@ describe("prod-check.yml: comprobación de producción (informativa, no bloquea 
     assert.match(sinEspera[0], /^ {8}if:\s*github\.event_name != 'push'\s*$/m);
   });
 
-  test("tiene la misma concurrencia que ci.yml y un límite de tiempo mayor que la espera de 10 minutos", () => {
-    const bloque = (t) => /^concurrency:\s*\n((?: {2}\S.*\n)+)/m.exec(t)?.[1];
-    assert.ok(bloque(prodCheck()), "sin bloque `concurrency:`");
-    assert.equal(bloque(prodCheck()), bloque(read(".github/workflows/ci.yml").replace(/^\s*#.*$/gm, "")));
+  test("en producción solo importa el último despliegue: un grupo por rama y una ejecución nueva cancela la anterior", () => {
+    // Propia de este workflow, no la de ci.yml (que agrupa por commit para que ninguno se quede sin CI):
+    // dos pushes seguidos no deben dar un falso fallo del primero, que espera un despliegue ya superado.
+    const bloque = /^concurrency:\s*\n((?: {2}\S.*\n)+)/m.exec(prodCheck())?.[1];
+    assert.ok(bloque, "sin bloque `concurrency:`");
+    assert.equal(bloque, '  group: "${{ github.workflow }}-${{ github.ref }}"\n  cancel-in-progress: true\n');
+  });
+
+  test("tiene un límite de tiempo mayor que la espera de 10 minutos", () => {
     const minutos = Number(/^ {4}timeout-minutes:\s*(\d+)\s*$/m.exec(jobsOf(prodCheck()).produccion)?.[1]);
     assert.ok(minutos > 10 && minutos <= 30, `timeout-minutes=${minutos}`);
   });

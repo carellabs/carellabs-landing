@@ -25,11 +25,12 @@ on:
 permissions:
   contents: read
 
-# Igual que ci.yml: en `main` y en el cron cada ejecución tiene su propio grupo (por SHA) y nunca
-# se cancela a otra. (Este workflow no corre en PR; el bloque se deja idéntico por coherencia.)
+# Aquí solo importa el último despliegue: una ejecución nueva cancela la anterior. Así, dos pushes
+# seguidos no dan un falso fallo del primero, que estaría esperando un despliegue ya superado por el
+# segundo. (ci.yml hace lo contrario, un grupo por commit, porque allí cada commit necesita su CI.)
 concurrency:
-  group: "${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}"
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
 
 jobs:
   produccion:

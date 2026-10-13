@@ -136,6 +136,21 @@ const fail = (/** @type {string} */ name, /** @type {string} */ detail) => ({ na
 const unreachable = (reply) => `sin respuesta de ${reply.url}: ${reply.error}`;
 
 /**
+ * Dice que el estado no es el esperado. Si la respuesta trae `cf-mitigated` (Cloudflare la pone cuando
+ * ha servido un desafío o un bloqueo), lo añade: así se ve desde el log si Cloudflare está bloqueando a
+ * los runners de GitHub (IPs de centros de datos) y no es la web la que falla.
+ *
+ * @param {Extract<Reply, { ok: true }>} reply
+ * @param {string | number} wanted lo que se esperaba («200», «307 hacia /en/»…)
+ * @returns {string}
+ */
+function unexpectedStatus(reply, wanted) {
+  const mitigated = reply.headers.get("cf-mitigated");
+  const hint = mitigated === null ? "" : ` (cf-mitigated: «${safe(mitigated)}»; ¿desafío de bots de Cloudflare?)`;
+  return `responde ${reply.status}${hint}, se esperaba ${wanted}`;
+}
+
+/**
  * Resuelve un `Location` (relativo o absoluto) contra la URL pedida; `null` si no es una URL.
  * @param {string} location
  * @param {string} base
@@ -160,7 +175,7 @@ function checkStatus(path, reply, want) {
   if (!reply.ok) return fail(name, unreachable(reply));
   return reply.status === want
     ? pass(name, String(want))
-    : fail(name, `responde ${reply.status}, se esperaba ${want}`);
+    : fail(name, unexpectedStatus(reply, want));
 }
 
 /**
@@ -172,7 +187,7 @@ function checkStatus(path, reply, want) {
 function checkRedirectToEnglish(reply, origin) {
   const name = "redirección de /en";
   if (!reply.ok) return fail(name, unreachable(reply));
-  if (reply.status !== 307) return fail(name, `responde ${reply.status}, se esperaba 307 hacia /en/`);
+  if (reply.status !== 307) return fail(name, unexpectedStatus(reply, "307 hacia /en/"));
   const location = reply.headers.get("location");
   if (location === null) return fail(name, "responde 307 sin cabecera Location, se esperaba /en/");
   return resolveLocation(location, reply.url) === new URL("/en/", origin).href
@@ -233,7 +248,7 @@ async function checkAssetCache(home, get) {
   const name = `caché de ${path}`;
   const reply = await get(path);
   if (!reply.ok) return fail(name, unreachable(reply));
-  if (reply.status !== 200) return fail(name, `responde ${reply.status}, se esperaba 200`);
+  if (reply.status !== 200) return fail(name, unexpectedStatus(reply, 200));
   const got = reply.headers.get("cache-control");
   return got === ASSET_CACHE_CONTROL
     ? pass(name, ASSET_CACHE_CONTROL)
@@ -335,7 +350,7 @@ function checkWwwRedirect(reply, origin) {
   const name = "www redirige al dominio raíz";
   if (!reply.ok) return fail(name, unreachable(reply));
   const want = new URL(WWW_PROBE, origin).href;
-  if (reply.status !== 301) return fail(name, `responde ${reply.status}, se esperaba 301 hacia ${want}`);
+  if (reply.status !== 301) return fail(name, unexpectedStatus(reply, `301 hacia ${want}`));
   const location = reply.headers.get("location");
   if (location === null) return fail(name, `responde 301 sin cabecera Location, se esperaba ${want}`);
   return resolveLocation(location, reply.url) === want
@@ -437,7 +452,7 @@ const defaultSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
  */
 function whyNotDeployed(reply, item, expected) {
   if (!reply.ok) return unreachable(reply);
-  if (reply.status !== item.status) return `responde ${reply.status}, se esperaba ${item.status}`;
+  if (reply.status !== item.status) return unexpectedStatus(reply, item.status);
   const built = item.built(expected);
   return reply.body.equals(built) ? null : describeDifference(reply.body, built, item.reference);
 }

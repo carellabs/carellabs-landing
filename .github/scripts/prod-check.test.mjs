@@ -504,6 +504,71 @@ describe("runChecks: cabeceras de _headers y caché de /_astro", () => {
   });
 });
 
+describe("runChecks: pista de Cloudflare cuando el estado no es el esperado", () => {
+  const PISTA = "cf-mitigated: «challenge»; ¿desafío de bots de Cloudflare?";
+  const bloqueada = (entrada) => {
+    entrada.status = 403;
+    entrada.headers = { ...entrada.headers, "cf-mitigated": "challenge" };
+  };
+  const url = (ruta) => `https://carellabs.com${ruta}`;
+
+  test("un estado inesperado con cf-mitigated lo dice, con el valor, y apunta al desafío de bots", async () => {
+    const table = goodTable();
+    bloqueada(table[url("/")]);
+    const r = find(await run(table), /^estado de \/$/);
+    assert.equal(r.ok, false);
+    assert.equal(r.detail, `responde 403 (${PISTA}), se esperaba 200`);
+  });
+
+  test("lo mismo en la 404, en /en/, en la redirección de /en, en el CSS de /_astro y en www", async () => {
+    const table = goodTable();
+    for (const ruta of ["/no-existe", "/en/", "/en", "/_astro/index.AbC123.css"]) bloqueada(table[url(ruta)]);
+    bloqueada(table["https://www.carellabs.com/en/?x=1"]);
+    const results = await run(table);
+    assert.equal(find(results, /^estado de \/no-existe$/).detail, `responde 403 (${PISTA}), se esperaba 404`);
+    assert.equal(find(results, /^estado de \/en\/$/).detail, `responde 403 (${PISTA}), se esperaba 200`);
+    assert.equal(find(results, /^redirección de \/en$/).detail, `responde 403 (${PISTA}), se esperaba 307 hacia /en/`);
+    assert.equal(find(results, /^caché de \/_astro\//).detail, `responde 403 (${PISTA}), se esperaba 200`);
+    assert.equal(
+      find(results, /^www redirige/).detail,
+      `responde 403 (${PISTA}), se esperaba 301 hacia https://carellabs.com/en/?x=1`,
+    );
+  });
+
+  test("sin cf-mitigated el mensaje no cambia (no se inventa una pista)", async () => {
+    const table = goodTable();
+    table[url("/")].status = 403;
+    table[url("/en/")].status = 503;
+    const results = await run(table);
+    assert.equal(find(results, /^estado de \/$/).detail, "responde 403, se esperaba 200");
+    assert.equal(find(results, /^estado de \/en\/$/).detail, "responde 503, se esperaba 200");
+  });
+
+  test("el valor de cf-mitigated llega saneado y recortado", async () => {
+    const table = goodTable();
+    table[url("/")].status = 403;
+    table[url("/")].headers = { ...table[url("/")].headers, "cf-mitigated": "x".repeat(1000) };
+    const r = find(await run(table), /^estado de \/$/);
+    assert.ok(r.detail.length < 450, `${r.detail.length} caracteres`);
+    assert.ok(r.detail.includes("…"), r.detail);
+  });
+
+  test("la espera también lo dice, para ver desde el push si Cloudflare bloquea a los runners", async () => {
+    const bloqueo = { status: 403, headers: { "cf-mitigated": "challenge" }, body: "<html>Just a moment...</html>" };
+    const fetchFalso = async () => new Response(Buffer.from(bloqueo.body), { status: 403, headers: bloqueo.headers });
+    const r = await prod.waitForDeploy({
+      site: SITE,
+      fetch: fetchFalso,
+      expected: EXPECTED,
+      waitSeconds: 0,
+      ...relojFalso(),
+    });
+    assert.equal(r.ok, false);
+    assert.ok(r.detail.includes(`/ (responde 403 (${PISTA}), se esperaba 200)`), r.detail);
+    assert.ok(r.detail.includes(`/no-existe (responde 403 (${PISTA}), se esperaba 404)`), r.detail);
+  });
+});
+
 describe("runChecks: contenido idéntico al build y a public/", () => {
   const url = (ruta) => `https://carellabs.com${ruta}`;
   const NOMBRES = {

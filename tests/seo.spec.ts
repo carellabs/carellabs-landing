@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { test, expect } from "@playwright/test";
-import { serializeJsonLd } from "../src/lib/jsonld";
+import { personJsonLd, serializeJsonLd } from "../src/lib/jsonld";
 import { HERO_FOCUS } from "./viewports";
 
 // Lo que se publica para los buscadores (dist/ lo deja `astro build` antes de lanzar los tests).
@@ -222,6 +222,61 @@ test("serializeJsonLd escapes `<` so that no text can close the <script> tag", (
   expect(JSON.parse(out)).toEqual(data);
   // Control positivo: sin `<` la salida es exactamente `JSON.stringify`.
   expect(serializeJsonLd({ a: ["b", 1], c: { d: null } })).toBe('{"a":["b",1],"c":{"d":null}}');
+});
+
+// El layout no monta ni serializa el JSON-LD a mano: llama a `personJsonLd`, que ya devuelve el texto
+// escapado. Así ningún cambio en la plantilla puede saltarse el escape de `<`.
+test("personJsonLd escapes hostile texts in every field: no `<` in the output and the texts come back intact", () => {
+  const hostile = {
+    hero: { name: "</script><b>Eve</b>", note: ["<!-- a", "</SCRIPT >", "ok"] },
+    meta: { jobTitle: "<!--", locality: "</ScRiPt ><script>alert(1)</script>" },
+    contact: { links: [{ href: "https://a.test/</script>" }, { href: "https://b.test/<!--x" }] },
+  };
+  const out = personJsonLd(hostile, new URL("https://example.test/en/"));
+  expect(out).not.toContain("<");
+
+  const data = JSON.parse(out);
+  expect(data.name).toBe(hostile.hero.name);
+  expect(data.knowsAbout).toEqual(hostile.hero.note);
+  expect(data.jobTitle).toBe(hostile.meta.jobTitle);
+  expect(data.address.addressLocality).toBe(hostile.meta.locality);
+  expect(data.sameAs).toEqual(hostile.contact.links.map((link) => link.href));
+  // Control positivo: es un Person completo, no un objeto vacío, y la URL es la de la página que se le pasa.
+  expect(data["@type"]).toBe("Person");
+  expect(data.url).toBe("https://example.test/en/");
+});
+
+for (const lang of ["es", "en"] as const) {
+  const [file, canonical] = lang === "es" ? ["index.html", `${SITE}/`] : ["en/index.html", `${SITE}/en/`];
+
+  test(`dist/${file}: the JSON-LD is byte for byte what personJsonLd returns`, () => {
+    const html = readFileSync(`dist/${file}`, "utf8");
+    const open = '<script type="application/ld+json">';
+    const start = html.indexOf(open);
+    expect(start, "no hay JSON-LD en el HTML publicado").toBeGreaterThan(-1);
+    const end = html.indexOf("</script>", start);
+    expect(html.slice(start + open.length, end)).toBe(personJsonLd(messages(lang), new URL(canonical)));
+  });
+}
+
+test("the templates inject raw HTML only through personJsonLd, never through their own JSON.stringify", () => {
+  const files = readdirSync("src", { recursive: true })
+    .map((file) => `src/${String(file).replaceAll("\\", "/")}`)
+    .filter((file) => file.endsWith(".astro"));
+  // Control positivo: se han leído las plantillas y alguna usa `set:html`.
+  expect(files.length).toBeGreaterThan(5);
+  const injected = files.flatMap((file) =>
+    [...readFileSync(file, "utf8").matchAll(/set:html=[{]([^}]*)[}]/g)].map((m) => ({ file, expression: m[1]!.trim() })),
+  );
+  expect(injected.length, "ninguna plantilla usa set:html").toBeGreaterThan(0);
+
+  // Todo `set:html` es una llamada a `personJsonLd(...)`: el escape no se puede saltar desde la plantilla.
+  for (const { file, expression } of injected) {
+    expect(expression, `${file}: set:html debe recibir el resultado de personJsonLd(...)`).toMatch(/^personJsonLd[(]/);
+  }
+  for (const file of files) {
+    expect(readFileSync(file, "utf8"), `${file}: no debe serializar JSON a mano`).not.toContain("JSON.stringify");
+  }
 });
 
 // Imagen de previsualización en redes: una por idioma, con el titular de cada uno

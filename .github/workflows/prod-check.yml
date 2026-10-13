@@ -12,6 +12,9 @@ name: Producción
 #   robots.txt o inyecta un script) y que security.txt se acerque a su caducidad.
 # - A mano: `gh workflow run prod-check.yml` (compara producción con el build de main).
 #
+# El cron y el disparo manual no esperan ningún despliegue: si algo falla, el script repite las
+# comprobaciones una vez, a los 60 s, y solo falla si persiste (un fallo pasajero de red no da alarma).
+#
 # NO es un check obligatorio: el ruleset de `main` exige solo test, lighthouse y pr-policy, y el
 # job se llama `produccion` a propósito. Es de solo lectura (no escribe en el repositorio ni abre
 # issues): si falla, GitHub avisa por correo.

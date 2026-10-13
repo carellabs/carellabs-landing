@@ -639,13 +639,23 @@ export function formatResult({ name, ok, detail }) {
   return `FALLO  ${name}: ${detail}`;
 }
 
-/** @param {CheckResult[]} results */
-function summarize(results) {
+/**
+ * @param {CheckResult[]} results
+ * @param {boolean} [retried] si se llega aquí tras un reintento
+ */
+function summarize(results, retried = false) {
   const failed = results.filter((result) => !result.ok).length;
-  return failed === 0
-    ? `Producción: ${results.length} comprobaciones, todas correctas.`
-    : `Producción: ${failed} de ${results.length} comprobaciones con fallo.`;
+  if (failed === 0) {
+    return `Producción: ${results.length} comprobaciones, todas correctas${retried ? " tras un reintento" : ""}.`;
+  }
+  return `Producción: ${failed} de ${results.length} comprobaciones con fallo${retried ? ", también tras un reintento" : ""}.`;
 }
+
+/**
+ * Cuánto se espera antes de repetir las comprobaciones, en milisegundos, cuando fallan fuera de un
+ * push (el cron y el disparo manual): da tiempo a que pase un fallo pasajero de red.
+ */
+export const RETRY_DELAY_MS = 60_000;
 
 /** Raíz del repositorio (este fichero está en `.github/scripts/`). */
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -660,6 +670,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
  * @param {(path: string) => Buffer | string} [deps.readFile]
  * @param {() => number} [deps.now]
  * @param {(ms: number) => Promise<void>} [deps.sleep]
+ * @param {number} [deps.retryDelayMs] espera antes del reintento (por defecto, `RETRY_DELAY_MS`)
  * @param {(line: string) => void} [deps.log]
  * @param {(line: string) => void} [deps.error]
  * @param {string} [deps.root] raíz del repositorio
@@ -672,6 +683,7 @@ export async function main(argv, deps = {}) {
     readFile = readFileSync,
     now = Date.now,
     sleep = defaultSleep,
+    retryDelayMs = RETRY_DELAY_MS,
     log = console.log,
     error = console.error,
     root = ROOT,
@@ -720,11 +732,29 @@ export async function main(argv, deps = {}) {
     }
   }
 
-  for (const result of await runChecks({ site: options.site, fetch: fetchFn, expected, now })) {
-    results.push(result);
-    log(formatResult(result));
+  const check = async () => {
+    const done = await runChecks({ site: options.site, fetch: fetchFn, expected, now });
+    for (const result of done) log(formatResult(result));
+    return done;
+  };
+
+  let checks = await check();
+  // Sin --wait (el cron y el disparo manual) no hay un despliegue que esperar: ante fallos se repite UNA
+  // vez, por si fue algo pasajero, y solo se falla si persisten. Tras un push la espera ya lo cubre.
+  let retried = false;
+  if (options.wait === undefined && checks.some((result) => !result.ok)) {
+    const failed = checks.filter((result) => !result.ok).length;
+    log(
+      `Primer intento: ${failed} de ${checks.length} comprobaciones con fallo. ` +
+        `Se repiten una vez dentro de ${Math.round(retryDelayMs / 1000)} s, por si fue algo pasajero.`,
+    );
+    await sleep(retryDelayMs);
+    log("Reintento:");
+    checks = await check();
+    retried = true;
   }
-  log(summarize(results));
+  results.push(...checks);
+  log(summarize(results, retried));
   return results.every((result) => result.ok) ? 0 : 1;
 }
 

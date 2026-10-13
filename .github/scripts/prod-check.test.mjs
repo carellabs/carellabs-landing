@@ -1233,17 +1233,116 @@ describe("main: la CLI", () => {
     assert.match(out.at(-1), /16 comprobaciones/);
   });
 
+  // Fuera del push (el cron y el disparo manual no esperan ningún despliegue), un fallo pasajero de red
+  // no debe dar un correo de alarma: si hay fallos, se repiten las comprobaciones una vez, pasado un rato.
+  /** Un `fetch` cuya primera respuesta a `url` es la dada; las siguientes, las buenas. */
+  function conPrimeraRespuestaMala(url, mala) {
+    const base = fakeFetch(goodTable());
+    let primera = true;
+    const fn = async (u, init) => {
+      if (String(u) === url && primera) {
+        primera = false;
+        base.calls.push({ url: String(u), init });
+        return new Response(Buffer.from(mala), { status: 200 });
+      }
+      return base(u, init);
+    };
+    fn.calls = base.calls;
+    return fn;
+  }
+
+  test("si todo va bien a la primera no hay reintento: ni espera ni segunda vuelta", async () => {
+    const { deps, out, fetchFalso, reloj } = entorno();
+    const code = await prod.main([], deps);
+    assert.equal(code, 0, out.join("\n"));
+    assert.deepEqual(reloj.sleeps, []);
+    const pedidas = fetchFalso.calls.map((c) => c.url);
+    assert.equal(new Set(pedidas).size, pedidas.length, "alguna URL se pidió dos veces");
+    assert.ok(!out.join("\n").includes("einten"), out.join("\n"));
+    assert.match(out.at(-1), /^Producción: 16 comprobaciones, todas correctas\.$/);
+  });
+
+  test("con fallos y sin --wait repite UNA vez tras 60 s, y si ya va bien termina en 0 dejando claro que hubo reintento", async () => {
+    const mala = conPrimeraRespuestaMala("https://carellabs.com/robots.txt", "User-agent: *\nDisallow: /\n");
+    const { deps, out, reloj } = entorno({ fetchFalso: mala });
+    const code = await prod.main([], deps);
+    assert.equal(code, 0, out.join("\n"));
+    assert.deepEqual(reloj.sleeps, [60_000]);
+
+    const texto = out.join("\n");
+    // El fallo del primer intento queda en el log...
+    assert.equal(lineas(out, "FALLO").length, 1);
+    assert.match(lineas(out, "FALLO")[0], /^FALLO {2}robots\.txt idéntico al de public\//);
+    // ...se explica qué se va a hacer...
+    assert.match(texto, /Primer intento: 1 de 16 comprobaciones con fallo\. Se repiten una vez dentro de 60 s, por si fue algo pasajero\./);
+    // ...y el segundo intento va marcado y entero.
+    const marca = out.indexOf("Reintento:");
+    assert.ok(marca > 0, texto);
+    assert.equal(out.slice(marca + 1).filter((l) => l.startsWith("OK     ")).length, 16);
+    assert.equal(out.at(-1), "Producción: 16 comprobaciones, todas correctas tras un reintento.");
+  });
+
+  test("si el fallo persiste, sale con 1 tras un solo reintento (no más) y lo dice", async () => {
+    const table = goodTable();
+    table["https://carellabs.com/robots.txt"].body = "User-agent: *\nDisallow: /\n";
+    const { deps, out, reloj, fetchFalso } = entorno({ fetchFalso: fakeFetch(table) });
+    const code = await prod.main([], deps);
+    assert.equal(code, 1);
+    assert.deepEqual(reloj.sleeps, [60_000]);
+    assert.equal(lineas(out, "FALLO").length, 2, "un FALLO en cada intento");
+    assert.equal(out.filter((l) => l === "Reintento:").length, 1);
+    assert.equal(out.at(-1), "Producción: 1 de 16 comprobaciones con fallo, también tras un reintento.");
+    const robots = fetchFalso.calls.filter((c) => c.url === "https://carellabs.com/robots.txt");
+    assert.equal(robots.length, 2);
+  });
+
+  test("el reintento vuelve a pedirlo todo, no reaprovecha las respuestas del primer intento", async () => {
+    const { deps, fetchFalso } = entorno({ fetchFalso: conPrimeraRespuestaMala("https://carellabs.com/", "<html></html>") });
+    await prod.main([], deps);
+    const home = fetchFalso.calls.filter((c) => c.url === "https://carellabs.com/");
+    assert.equal(home.length, 2);
+  });
+
+  test("la espera del reintento es de 60 s por defecto y se puede inyectar", async () => {
+    assert.equal(prod.RETRY_DELAY_MS, 60_000);
+    const mala = conPrimeraRespuestaMala("https://carellabs.com/robots.txt", "x");
+    const { deps, reloj, out } = entorno({ fetchFalso: mala });
+    const code = await prod.main([], { ...deps, retryDelayMs: 5_000 });
+    assert.equal(code, 0);
+    assert.deepEqual(reloj.sleeps, [5_000]);
+    assert.match(out.join("\n"), /Se repiten una vez dentro de 5 s/);
+  });
+
+  test("tras un push (--wait) no hay reintento: la espera ya cubre el despliegue", async () => {
+    const table = goodTable();
+    table["https://www.carellabs.com/en/?x=1"].status = 302; // algo que la espera no mira
+    const { deps, out, reloj, fetchFalso } = entorno({ fetchFalso: fakeFetch(table) });
+    const code = await prod.main(["--wait", "600"], deps);
+    assert.equal(code, 1);
+    assert.deepEqual(reloj.sleeps, []);
+    assert.equal(fetchFalso.calls.filter((c) => c.url === "https://www.carellabs.com/en/?x=1").length, 1);
+    assert.ok(!out.join("\n").includes("einten"), out.join("\n"));
+    assert.equal(out.at(-1), "Producción: 1 de 17 comprobaciones con fallo.");
+  });
+
+  test("un error de configuración (sin build) no se reintenta", async () => {
+    const { deps, reloj, fetchFalso } = entorno({ files: {} });
+    assert.equal(await prod.main([], deps), 2);
+    assert.deepEqual(reloj.sleeps, []);
+    assert.equal(fetchFalso.calls.length, 0);
+  });
+
   test("con una comprobación rota: código 1, su línea FALLO con el motivo, y las demás siguen en OK", async () => {
     const table = goodTable();
     table["https://carellabs.com/robots.txt"].body = "User-agent: *\nDisallow: /\n";
     const { deps, out } = entorno({ fetchFalso: fakeFetch(table) });
     const code = await prod.main([], deps);
     assert.equal(code, 1);
+    // (el fallo persiste en el reintento: una línea FALLO por intento)
     const fallos = lineas(out, "FALLO");
-    assert.equal(fallos.length, 1);
-    assert.match(fallos[0], /^FALLO {2}robots\.txt idéntico al de public\/: sirve /);
-    assert.equal(lineas(out, "OK     ").length, 15);
-    assert.match(out.at(-1), /1 de 16/);
+    assert.equal(fallos.length, 2);
+    for (const linea of fallos) assert.match(linea, /^FALLO {2}robots\.txt idéntico al de public\/: sirve /);
+    assert.equal(lineas(out, "OK     ").length, 30);
   });
 
   test("--site cambia el origen que se comprueba (y el de www)", async () => {

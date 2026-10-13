@@ -543,6 +543,122 @@ describe("codeql.yml: análisis de código como workflow (configuración avanzad
   });
 });
 
+describe("prod-check.yml: comprobación de producción (informativa, no bloquea la fusión)", () => {
+  const FILE = ".github/workflows/prod-check.yml";
+  /** El texto del workflow, sin las líneas de comentario (para no confundir una explicación con una regla). */
+  const prodCheck = () => {
+    assert.ok(workflows().includes("prod-check.yml"), `falta ${FILE}`);
+    return read(FILE).replace(/^\s*#.*$/gm, "");
+  };
+  const cronDe = (file) => {
+    assert.ok(workflows().includes(file.split("/").pop()), `falta ${file}`);
+    return /cron:\s*"([^"]+)"/.exec(read(file))?.[1];
+  };
+  /** Los pasos del job, cada uno como su texto (sin el «- » inicial). */
+  const pasos = (job) => job.split(/\n {6}- /).slice(1);
+
+  test("el workflow se llama «Producción» y tiene un único job, «produccion»", () => {
+    const text = prodCheck();
+    assert.match(text, /^name:\s*Producción\s*$/m);
+    const jobs = jobsOf(text);
+    assert.deepEqual(Object.keys(jobs), ["produccion"]);
+    assert.equal(checkName("produccion", jobs.produccion), "produccion");
+  });
+
+  test("se ejecuta en push a main, en un cron diario y a mano, y en nada más", () => {
+    const text = prodCheck();
+    assert.deepEqual(triggersOf(text).sort(), ["push", "schedule", "workflow_dispatch"]);
+    assert.match(text, /^ {2}push:\s*\n\s+branches:\s*\[main\]\s*$/m);
+    assert.match(text, /^ {4}-\s*cron:\s*"[^"]+"/m);
+    assert.match(text, /^ {2}workflow_dispatch:\s*$/m);
+    // Sin entradas manuales: nada que interpolar en un `run:`.
+    assert.doesNotMatch(text, /^\s+inputs:/m);
+  });
+
+  test("el cron es diario, no cae en el minuto 0 y no coincide con los de audit.yml y codeql.yml", () => {
+    const mio = cronDe(FILE);
+    assert.ok(mio, "prod-check.yml sin cron");
+    assert.match(mio, /^\d+ \d+ \* \* \*$/, "debe ser diario (todos los días)");
+    assert.notEqual(mio.split(/\s+/)[0], "0", "el minuto 0 es el de más carga en Actions");
+    for (const otro of [".github/workflows/audit.yml", ".github/workflows/codeql.yml"]) {
+      assert.ok(cronDe(otro), `${otro} sin cron`);
+      assert.notEqual(mio, cronDe(otro));
+    }
+  });
+
+  test("es de solo lectura: contents: read a nivel de workflow, ningún permiso en el job y ninguna escritura", () => {
+    const text = prodCheck();
+    const nivelWorkflow = /^permissions:\s*\n((?: {2}\S.*\n)+)/m.exec(text)?.[1];
+    assert.equal(nivelWorkflow, "  contents: read\n");
+    assert.doesNotMatch(jobsOf(text).produccion, /^\s+permissions:/m, "el job no debe tocar los permisos");
+    assert.doesNotMatch(text, /:\s*write\b/);
+  });
+
+  test("no abre issues ni usa secretos ni la CLI de GitHub: si falla, avisa GitHub por correo", () => {
+    const text = prodCheck();
+    assert.doesNotMatch(text, /\bgh\s/);
+    assert.doesNotMatch(text, /\bissues\b/i);
+    assert.doesNotMatch(text, /\bsecrets\./);
+    assert.doesNotMatch(text, /GITHUB_TOKEN/);
+  });
+
+  test("solo usa checkout y setup-node (fijados por SHA), con la versión de Node del repositorio y sin credenciales persistidas", () => {
+    const text = prodCheck();
+    const usos = [...text.matchAll(/uses:\s*([\w.-]+\/[\w./-]+)@([0-9a-f]{40})/g)].map((m) => m[1]);
+    assert.deepEqual(usos, ["actions/checkout", "actions/setup-node"]);
+    assert.match(text, /persist-credentials:\s*false/);
+    assert.match(text, /node-version-file:\s*\.nvmrc/);
+    assert.match(text, /cache:\s*npm/);
+  });
+
+  test("instala, construye y solo entonces comprueba (el build es el del mismo commit)", () => {
+    const job = jobsOf(prodCheck()).produccion;
+    const posicion = (re) => {
+      const i = job.search(re);
+      assert.ok(i >= 0, `no se encontró ${re}`);
+      return i;
+    };
+    assert.ok(posicion(/run:\s*npm ci\s*$/m) < posicion(/run:\s*npm run build\s*$/m));
+    assert.ok(posicion(/run:\s*npm run build\s*$/m) < posicion(/prod-check\.mjs/));
+  });
+
+  test("solo tras un push a main espera el despliegue (--wait 600); el cron y el disparo manual comprueban sin esperar", () => {
+    const comprobaciones = pasos(jobsOf(prodCheck()).produccion).filter((p) => /prod-check\.mjs/.test(p));
+    assert.equal(comprobaciones.length, 2);
+
+    const conEspera = comprobaciones.filter((p) => /--wait/.test(p));
+    assert.equal(conEspera.length, 1);
+    assert.match(conEspera[0], /^ {8}run:\s*node \.github\/scripts\/prod-check\.mjs --wait 600\s*$/m);
+    assert.match(conEspera[0], /^ {8}if:\s*github\.event_name == 'push'\s*$/m);
+
+    const sinEspera = comprobaciones.filter((p) => !/--wait/.test(p));
+    assert.equal(sinEspera.length, 1);
+    assert.match(sinEspera[0], /^ {8}run:\s*node \.github\/scripts\/prod-check\.mjs\s*$/m);
+    assert.match(sinEspera[0], /^ {8}if:\s*github\.event_name != 'push'\s*$/m);
+  });
+
+  test("tiene la misma concurrencia que ci.yml y un límite de tiempo mayor que la espera de 10 minutos", () => {
+    const bloque = (t) => /^concurrency:\s*\n((?: {2}\S.*\n)+)/m.exec(t)?.[1];
+    assert.ok(bloque(prodCheck()), "sin bloque `concurrency:`");
+    assert.equal(bloque(prodCheck()), bloque(read(".github/workflows/ci.yml").replace(/^\s*#.*$/gm, "")));
+    const minutos = Number(/^ {4}timeout-minutes:\s*(\d+)\s*$/m.exec(jobsOf(prodCheck()).produccion)?.[1]);
+    assert.ok(minutos > 10 && minutos <= 30, `timeout-minutes=${minutos}`);
+  });
+
+  test("no es un check obligatorio: el job no se llama como uno y el ruleset no lo exige", () => {
+    for (const [id, block] of Object.entries(jobsOf(prodCheck()))) {
+      assert.ok(!REQUIRED_CHECKS.includes(id), `el job ${id} se llama como un check obligatorio`);
+      assert.ok(!REQUIRED_CHECKS.includes(checkName(id, block)), `el job ${id} se muestra como un check obligatorio`);
+    }
+    const ruleset = JSON.parse(read(".claude/skills/carellabs-github/assets/ruleset-main.json"));
+    const exigidos = ruleset.rules
+      .find((r) => r.type === "required_status_checks")
+      .parameters.required_status_checks.map((c) => c.context);
+    assert.deepEqual([...exigidos].sort(), [...REQUIRED_CHECKS].sort());
+    assert.ok(!exigidos.some((c) => /produc/i.test(c)), "el ruleset exige la comprobación de producción");
+  });
+});
+
 describe("ficheros del repositorio: avisos legales y seguridad", () => {
   test("SECURITY.md ofrece también el reporte privado de GitHub (no depende solo del correo)", () => {
     assert.match(read("SECURITY.md"), /Report a vulnerability/);

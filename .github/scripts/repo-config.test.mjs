@@ -543,6 +543,212 @@ describe("codeql.yml: análisis de código como workflow (configuración avanzad
   });
 });
 
+describe("prod-check.yml: comprobación de producción (informativa, no bloquea la fusión)", () => {
+  const FILE = ".github/workflows/prod-check.yml";
+  /** El texto del workflow, sin las líneas de comentario (para no confundir una explicación con una regla). */
+  const prodCheck = () => {
+    assert.ok(workflows().includes("prod-check.yml"), `falta ${FILE}`);
+    return read(FILE).replace(/^\s*#.*$/gm, "");
+  };
+  const cronDe = (file) => {
+    assert.ok(workflows().includes(file.split("/").pop()), `falta ${file}`);
+    return /cron:\s*"([^"]+)"/.exec(read(file))?.[1];
+  };
+  /** Los pasos del job, cada uno como su texto (sin el «- » inicial). */
+  const pasos = (job) => job.split(/\n {6}- /).slice(1);
+
+  test("el workflow se llama «Producción» y tiene un único job, «produccion»", () => {
+    const text = prodCheck();
+    assert.match(text, /^name:\s*Producción\s*$/m);
+    const jobs = jobsOf(text);
+    assert.deepEqual(Object.keys(jobs), ["produccion"]);
+    assert.equal(checkName("produccion", jobs.produccion), "produccion");
+  });
+
+  test("se ejecuta en push a main, en un cron diario y a mano, y en nada más", () => {
+    const text = prodCheck();
+    assert.deepEqual(triggersOf(text).sort(), ["push", "schedule", "workflow_dispatch"]);
+    assert.match(text, /^ {2}push:\s*\n\s+branches:\s*\[main\]\s*$/m);
+    assert.match(text, /^ {4}-\s*cron:\s*"[^"]+"/m);
+    assert.match(text, /^ {2}workflow_dispatch:\s*$/m);
+    // Sin entradas manuales: nada que interpolar en un `run:`.
+    assert.doesNotMatch(text, /^\s+inputs:/m);
+  });
+
+  test("el cron es diario, no cae en el minuto 0 y no coincide con los de audit.yml y codeql.yml", () => {
+    const mio = cronDe(FILE);
+    assert.ok(mio, "prod-check.yml sin cron");
+    assert.match(mio, /^\d+ \d+ \* \* \*$/, "debe ser diario (todos los días)");
+    assert.notEqual(mio.split(/\s+/)[0], "0", "el minuto 0 es el de más carga en Actions");
+    for (const otro of [".github/workflows/audit.yml", ".github/workflows/codeql.yml"]) {
+      assert.ok(cronDe(otro), `${otro} sin cron`);
+      assert.notEqual(mio, cronDe(otro));
+    }
+  });
+
+  test("es de solo lectura: contents: read a nivel de workflow, ningún permiso en el job y ninguna escritura", () => {
+    const text = prodCheck();
+    const nivelWorkflow = /^permissions:\s*\n((?: {2}\S.*\n)+)/m.exec(text)?.[1];
+    assert.equal(nivelWorkflow, "  contents: read\n");
+    assert.doesNotMatch(jobsOf(text).produccion, /^\s+permissions:/m, "el job no debe tocar los permisos");
+    assert.doesNotMatch(text, /:\s*write\b/);
+  });
+
+  test("no abre issues ni usa secretos ni la CLI de GitHub: si falla, avisa GitHub por correo", () => {
+    const text = prodCheck();
+    assert.doesNotMatch(text, /\bgh\s/);
+    assert.doesNotMatch(text, /\bissues\b/i);
+    assert.doesNotMatch(text, /\bsecrets\./);
+    assert.doesNotMatch(text, /GITHUB_TOKEN/);
+  });
+
+  test("solo usa checkout y setup-node (fijados por SHA), con la versión de Node del repositorio y sin credenciales persistidas", () => {
+    const text = prodCheck();
+    const usos = [...text.matchAll(/uses:\s*([\w.-]+\/[\w./-]+)@([0-9a-f]{40})/g)].map((m) => m[1]);
+    assert.deepEqual(usos, ["actions/checkout", "actions/setup-node"]);
+    assert.match(text, /persist-credentials:\s*false/);
+    assert.match(text, /node-version-file:\s*\.nvmrc/);
+    assert.match(text, /cache:\s*npm/);
+  });
+
+  test("instala, construye y solo entonces comprueba (el build es el del mismo commit)", () => {
+    const job = jobsOf(prodCheck()).produccion;
+    const posicion = (re) => {
+      const i = job.search(re);
+      assert.ok(i >= 0, `no se encontró ${re}`);
+      return i;
+    };
+    assert.ok(posicion(/run:\s*npm ci\s*$/m) < posicion(/run:\s*npm run build\s*$/m));
+    assert.ok(posicion(/run:\s*npm run build\s*$/m) < posicion(/prod-check\.mjs/));
+  });
+
+  test("solo tras un push a main espera el despliegue (--wait 600); el cron y el disparo manual comprueban sin esperar", () => {
+    const comprobaciones = pasos(jobsOf(prodCheck()).produccion).filter((p) => /prod-check\.mjs/.test(p));
+    assert.equal(comprobaciones.length, 2);
+
+    const conEspera = comprobaciones.filter((p) => /--wait/.test(p));
+    assert.equal(conEspera.length, 1);
+    assert.match(conEspera[0], /^ {8}run:\s*node \.github\/scripts\/prod-check\.mjs --wait 600\s*$/m);
+    assert.match(conEspera[0], /^ {8}if:\s*github\.event_name == 'push'\s*$/m);
+
+    const sinEspera = comprobaciones.filter((p) => !/--wait/.test(p));
+    assert.equal(sinEspera.length, 1);
+    assert.match(sinEspera[0], /^ {8}run:\s*node \.github\/scripts\/prod-check\.mjs\s*$/m);
+    assert.match(sinEspera[0], /^ {8}if:\s*github\.event_name != 'push'\s*$/m);
+  });
+
+  test("en producción solo importa el último despliegue: un grupo por evento y rama, y una ejecución nueva cancela la anterior", () => {
+    // Propia de este workflow, no la de ci.yml (que agrupa por commit para que ninguno se quede sin CI):
+    // dos pushes seguidos no deben dar un falso fallo del primero, que espera un despliegue ya superado.
+    // El evento va en el grupo: el cron o un disparo manual no deben cancelar un push que está esperando
+    // el despliegue (su sustituto no espera y podría dar un falso fallo).
+    const bloque = /^concurrency:\s*\n((?: {2}\S.*\n)+)/m.exec(prodCheck())?.[1];
+    assert.ok(bloque, "sin bloque `concurrency:`");
+    assert.equal(
+      bloque,
+      '  group: "${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}"\n  cancel-in-progress: true\n',
+    );
+  });
+
+  test("tiene un límite de tiempo mayor que la espera de 10 minutos", () => {
+    const minutos = Number(/^ {4}timeout-minutes:\s*(\d+)\s*$/m.exec(jobsOf(prodCheck()).produccion)?.[1]);
+    assert.ok(minutos > 10 && minutos <= 30, `timeout-minutes=${minutos}`);
+  });
+
+  test("no es un check obligatorio: el job no se llama como uno y el ruleset no lo exige", () => {
+    for (const [id, block] of Object.entries(jobsOf(prodCheck()))) {
+      assert.ok(!REQUIRED_CHECKS.includes(id), `el job ${id} se llama como un check obligatorio`);
+      assert.ok(!REQUIRED_CHECKS.includes(checkName(id, block)), `el job ${id} se muestra como un check obligatorio`);
+    }
+    const ruleset = JSON.parse(read(".claude/skills/carellabs-github/assets/ruleset-main.json"));
+    const exigidos = ruleset.rules
+      .find((r) => r.type === "required_status_checks")
+      .parameters.required_status_checks.map((c) => c.context);
+    assert.deepEqual([...exigidos].sort(), [...REQUIRED_CHECKS].sort());
+    assert.ok(!exigidos.some((c) => /produc/i.test(c)), "el ruleset exige la comprobación de producción");
+  });
+});
+
+describe("src/ y astro.config.mjs: el build es reproducible (el mismo commit da siempre el mismo HTML)", () => {
+  /** Lo que haría depender el HTML de cuándo se construye: `new Date(`, `Date(` (sin `new`) y `Date.now(`. */
+  const LEE_LA_FECHA = /\bDate\s*\(|\bDate\s*\.\s*now\s*\(/;
+
+  /** Los ficheros que se compilan al sitio: el código de src/ (componentes, páginas, scripts) y la configuración de Astro. */
+  const ficherosQueSeCompilan = () => [
+    ...readdirSync(join(ROOT, "src"), { recursive: true })
+      .map(String)
+      .filter((f) => /\.(astro|[cm]?[jt]sx?)$/.test(f))
+      .map((f) => ({ ruta: `src/${f.split("\\").join("/")}`, texto: read(join("src", f)) })),
+    { ruta: "astro.config.mjs", texto: read("astro.config.mjs") },
+  ];
+
+  /** Rutas de los ficheros que leen la fecha. */
+  const culpablesDe = (ficheros) => ficheros.filter((f) => LEE_LA_FECHA.test(f.texto)).map((f) => f.ruta);
+
+  /** Por qué falla la guarda y qué hacer. */
+  const explicacion = (culpables) =>
+    `${culpables.join(", ")} lee la fecha de construcción. El mismo commit tiene que generar siempre el ` +
+    "mismo HTML: prod-check lo compara byte a byte con producción, y un valor sacado de la fecha (el año " +
+    "del pie, p. ej.) lo rompería al cambiar de día o de año. Si hace falta una fecha, escríbela en el " +
+    "código (el año de publicación, no el de construcción).";
+
+  test("ningún fichero de src/ ni astro.config.mjs lee la fecha: el año del pie, p. ej., sale del código", () => {
+    const ficheros = ficherosQueSeCompilan();
+    // Control positivo: se están revisando ficheros de verdad, de los tres tipos.
+    assert.ok(ficheros.some((f) => f.ruta.startsWith("src/") && f.ruta.endsWith(".astro")));
+    assert.ok(ficheros.some((f) => f.ruta.startsWith("src/") && f.ruta.endsWith(".ts")));
+    assert.match(ficheros.find((f) => f.ruta === "astro.config.mjs")?.texto ?? "", /defineConfig/);
+
+    const culpables = culpablesDe(ficheros);
+    assert.deepEqual(culpables, [], explicacion(culpables));
+  });
+
+  test("al fallar, el mensaje nombra los ficheros y explica el motivo y qué hacer", () => {
+    const mensaje = explicacion(["src/a.astro", "astro.config.mjs"]);
+    assert.ok(mensaje.startsWith("src/a.astro, astro.config.mjs lee la fecha de construcción."), mensaje);
+    for (const frase of ["mismo commit", "mismo HTML", "byte a byte", "producción", "año de publicación"]) {
+      assert.ok(mensaje.includes(frase), `falta «${frase}»: ${mensaje}`);
+    }
+  });
+
+  test("señala a los ficheros que la leen, también la configuración de Astro y `Date()` sin `new`", () => {
+    const culpables = culpablesDe([
+      { ruta: "astro.config.mjs", texto: "export default { define: { AHORA: String(Date()) } };" },
+      { ruta: "src/a.astro", texto: "const year = new Date().getFullYear();" },
+      { ruta: "src/b.ts", texto: "export const t = Date.now();" },
+      { ruta: "src/c.ts", texto: "export const year = 2026;" },
+    ]);
+    assert.deepEqual(culpables, ["astro.config.mjs", "src/a.astro", "src/b.ts"]);
+  });
+
+  test("la regla detecta las tres formas de leer la fecha, con espacios y sin ellos, y no confunde otras cosas", () => {
+    for (const texto of [
+      "new Date()",
+      "new Date().getFullYear()",
+      "new  Date (0)",
+      "Date()",
+      "Date ()",
+      "String(Date())",
+      "Date.now()",
+      "Date . now ()",
+      "x = Date.now( )",
+    ]) {
+      assert.match(texto, LEE_LA_FECHA, texto);
+    }
+    for (const texto of [
+      "const year = 2026;",
+      "UpdateDate(",
+      "isDate(x)",
+      "toDate(x)",
+      "new Datepicker()",
+      "candidate.now()",
+      "// la fecha",
+    ]) {
+      assert.doesNotMatch(texto, LEE_LA_FECHA, texto);
+    }
+  });
+});
+
 describe("ficheros del repositorio: avisos legales y seguridad", () => {
   test("SECURITY.md ofrece también el reporte privado de GitHub (no depende solo del correo)", () => {
     assert.match(read("SECURITY.md"), /Report a vulnerability/);

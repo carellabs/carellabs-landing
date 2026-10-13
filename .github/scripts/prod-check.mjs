@@ -433,8 +433,7 @@ function whyNotDeployed(reply, item, expected) {
  * Modo espera (`--wait`): tras un push a `main`, Cloudflare tarda un rato en publicar. Compara todo
  * el contenido que cambia con un despliegue (el HTML de `/`, `/en/` y la 404, `robots.txt` y
  * `security.txt`) con el build y `public/`, y repite cada `intervalMs` hasta que TODO coincida o se
- * agote `waitSeconds`; si se agota, dice qué sigue sin coincidir. Cada petición lleva una consulta
- * única para que ninguna caché la responda.
+ * agote `waitSeconds`; si se agota, dice qué sigue sin coincidir.
  *
  * @param {object} options
  * @param {string} options.site
@@ -465,14 +464,9 @@ export async function waitForDeploy({
   const start = now();
   const deadline = start + waitSeconds * 1000;
 
-  for (let attempt = 1; ; attempt++) {
+  for (;;) {
     const replies = await Promise.all(
-      CONTENT.map((item) => {
-        const url = new URL(item.path, origin);
-        // La hora de inicio distingue unas ejecuciones de otras; el número de intento, los intentos de una.
-        url.searchParams.set("cb", `${start}-${attempt}`);
-        return request(fetchFn, url.href, timeoutMs);
-      }),
+      CONTENT.map((item) => request(fetchFn, new URL(item.path, origin).href, timeoutMs)),
     );
     const pending = CONTENT.flatMap((item, i) => {
       const reason = whyNotDeployed(replies[i], item, expected);

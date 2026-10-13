@@ -83,14 +83,13 @@ function goodTable() {
 
 /**
  * Un `fetch` falso. Una URL sin entrada en la tabla falla como una red caída; una entrada que
- * es un Error se lanza. Para las peticiones con consulta única (modo espera) vale la entrada
- * de la misma URL sin consulta. Guarda las peticiones en `.calls`.
+ * es un Error se lanza. Guarda las peticiones en `.calls`.
  */
 function fakeFetch(table) {
   const calls = [];
   const fn = async (url, init) => {
     calls.push({ url: String(url), init });
-    const entry = table[String(url)] ?? table[String(url).split("?")[0]];
+    const entry = table[String(url)];
     if (entry === undefined) throw new TypeError("fetch failed");
     if (entry instanceof Error) throw entry;
     // (un cuerpo de texto haría que Response añadiera su propio Content-Type: se pasa como bytes)
@@ -921,21 +920,16 @@ describe("waitForDeploy: modo espera (--wait)", () => {
     for (const { url } of fetchFalso.calls) assert.equal(new URL(url).origin, SITE, url);
   });
 
-  test("cada petición lleva una consulta única (para saltarse cachés)", async () => {
+  // Se probó contra Cloudflare: responde `CF-Cache-Status: HIT` aunque la consulta sea nueva, así que una
+  // consulta «anticaché» no aporta nada y solo confunde. Las URL de la espera son las de siempre.
+  test("las URL de la espera son las de siempre: sin consulta ni parámetros", async () => {
     const fetchFalso = porRuta({ "/en/": [VIEJO] });
     await esperar(fetchFalso, relojFalso());
-    const urls = fetchFalso.calls.map((c) => c.url);
-    assert.equal(new Set(urls).size, urls.length, "URLs repetidas dentro de una ejecución");
-    for (const url of urls) assert.equal([...new URL(url).searchParams.keys()].length, 1, url);
-  });
-
-  test("dos ejecuciones distintas no comparten consulta (una caché de la anterior no sirve)", async () => {
-    const a = porRuta({ "/en/": [VIEJO] });
-    const b = porRuta({ "/en/": [VIEJO] });
-    await esperar(a, relojFalso(1_000_000));
-    await esperar(b, relojFalso(2_000_000));
-    const urls = [...a.calls, ...b.calls].map((c) => c.url);
-    assert.equal(new Set(urls).size, urls.length);
+    assert.ok(fetchFalso.calls.length > 0);
+    for (const { url, ruta } of fetchFalso.calls) {
+      assert.equal(url, `${SITE}${ruta}`);
+      assert.equal(new URL(url).search, "", url);
+    }
   });
 
   test("el límite de tiempo de cada petición rige también en el modo espera", async () => {

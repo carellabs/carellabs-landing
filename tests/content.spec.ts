@@ -47,6 +47,21 @@ for (const where of [".nav", ".foot"]) {
     await expect(page).toHaveURL((url) => url.pathname === "/");
     await expect(page.locator("html")).toHaveAttribute("lang", "es");
   });
+
+  // El enlace lleva `lang` del idioma de destino, así que su nombre accesible va entero en ese idioma
+  // (un lector de pantalla lo lee con esa voz): «English» o «Español», sin mezclar.
+  test(`language switch in ${where} is announced as the target language, in that language`, async ({ page }) => {
+    for (const [path, name, lang] of [
+      ["/", "English", "en"],
+      ["/en/", "Español", "es"],
+    ]) {
+      await page.goto(path);
+      const link = page.locator(where).getByRole("link", { name, exact: true });
+      await expect(link, `${path}: el selector de ${where} no se anuncia como «${name}»`).toHaveCount(1);
+      await expect(link).toHaveAttribute("lang", lang);
+      await expect(link).toHaveAttribute("hreflang", lang);
+    }
+  });
 }
 
 for (const pg of PAGES) {
@@ -227,7 +242,7 @@ test("404 page texts: Spanish message, English line and English home link keep t
   await expect(page.locator('meta[name="description"]')).toHaveAttribute("content", "Página no encontrada");
   await expect(page.getByRole("link", { name: "Volver al inicio" })).toHaveAttribute("href", "/");
   await expect(page.locator('p[lang="en"]')).toHaveText("This page doesn't exist.");
-  const english = page.getByRole("link", { name: "Home (EN)" });
+  const english = page.getByRole("link", { name: "Back to home", exact: true });
   await expect(english).toHaveAttribute("href", "/en/");
   await expect(english).toHaveAttribute("lang", "en");
   await expect(english).toHaveAttribute("hreflang", "en");

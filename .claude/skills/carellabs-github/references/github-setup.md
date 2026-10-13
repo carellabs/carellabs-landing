@@ -298,7 +298,25 @@ El script lee la configuración y la reenvía completa con solo `enable_js: fals
 
 ## 7. Comprobaciones tras cada fase
 
-Primero con la URL `*.workers.dev` (fase 1) y después con `carellabs.com` (fase 2). En los comandos, `HOST` es la que toque:
+**Automatizadas.** Con el dominio ya publicado (fase 2), el workflow `Producción` (`.github/workflows/prod-check.yml`, job `produccion`; la lógica y sus tests están en `.github/scripts/prod-check.mjs`) hace solo casi todo lo que sigue: cada día (07:23 UTC) y tras cada push a `main`, donde espera hasta 10 minutos a que Cloudflare publique ese commit. Comprueba:
+
+- los estados de `/` y `/en/` (200), `/no-existe` (404) y `/en` (307 a `/en/`);
+- las cabeceras de `public/_headers` con su valor exacto en `/`, `/en/` y la 404, y la caché de un CSS de `/_astro`;
+- el HTML de `/`, `/en/` y la 404 idéntico al build del mismo commit (lo que también detecta un correo ofuscado o un script inyectado);
+- `robots.txt` y `security.txt` idénticos a los de `public/` (este, además, como `text/plain`);
+- que `security.txt` caduque dentro de más de 60 días: si quedan 60 o menos, falla, y se renueva cambiando `Expires` en `public/.well-known/security.txt` (como máximo, un año vista);
+- que `https://www.carellabs.com/en/?x=1` responda 301 a `https://carellabs.com/en/?x=1`.
+
+Si algo falla, GitHub avisa por correo (no abre issues) y el check no es obligatorio para fusionar. Para lanzarlo a mano:
+
+```bash
+gh workflow run prod-check.yml     # compara producción con el build de main
+npm run build && npm run check:prod   # lo mismo en local, contra https://carellabs.com
+```
+
+`npm run check:prod` admite `--site <url>`, `--dist <carpeta>` y `--wait <segundos>`; está pensado para el dominio de producción (también pide `www.<dominio>`), así que contra un `*.workers.dev` la comprobación de `www` falla. Siguen siendo manuales los pasos que un runner no puede hacer: la consola del navegador sin violaciones de CSP, el CAA y el certificado (el DNS de la zona) y la respuesta a un user agent de bot (depende de la IP, y los runners de GitHub están en centros de datos). Y una limitación conocida: el pie de la web lleva el año del build (`© 2026`), así que desde el 1 de enero de 2027 la comparación del HTML de `/` y `/en/` fallará, sin que nada esté roto, hasta que se publique un build nuevo de `main`.
+
+Los comandos de abajo hacen a mano lo mismo (y algo más). Primero con la URL `*.workers.dev` (fase 1) y después con `carellabs.com` (fase 2). En los comandos, `HOST` es la que toque:
 
 ```bash
 HOST="carellabs-landing.<subdominio>.workers.dev"   # fase 1; en la fase 2: HOST="carellabs.com"
@@ -404,11 +422,13 @@ Los pasos 0 a 4 se ejecutaron contra el repositorio real y cada comprobación de
 - **Node 24** (PR #12, 13-oct-2026): Workers Builds lee el `.nvmrc` nuevo (24.21.0) y la build de `main` terminó bien. El CI también lo lee (`node-version-file`).
 - **Una build de `main` que Cloudflare nunca creó** (PR #14, 13-oct-2026): el check de Workers Builds se quedó en `queued` y en el historial de builds (*Deployments > View build history*, o `…/production/builds` en el panel) no apareció ninguna para ese commit, así que producción siguió con la versión anterior. Reintentar la última build no sirve (vuelve a construir el commit anterior), y pedir otra vez el check desde GitHub tampoco: la API responde 404 a una cuenta de usuario, porque solo puede hacerlo la app. Las salidas son un *Deploy Hook* (*Settings > Builds*), la API de Workers Builds o fusionar otro PR, cuya build incluye lo anterior. Se eligió lo último.
 - **«Default setup» de CodeQL** (paso 4.3): la consulta devolvió `not-configured`, como debe estar para que el workflow pueda subir sus resultados.
+- **Comprobación automática de producción** (paso 7, 13-oct-2026): `npm run check:prod` contra https://carellabs.com terminó con las 16 comprobaciones correctas, también con `--wait` (el HTML ya era el del build, así que no esperó). Dos cosas que se vieron al probarlo: Cloudflare responde `CF-Cache-Status: HIT` aunque la URL lleve una consulta nunca vista (tres consultas distintas, tres `HIT`: la caché de los assets no distingue la consulta, así que la consulta única del modo espera es inofensiva pero no cambia la respuesta), y el pie lleva el año del build. La ejecución en GitHub está por confirmar (ver «No verificado»).
 
 ## No verificado
 
 Lo que queda de verdad pendiente:
 
+- **El workflow `Producción` (`prod-check.yml`)**: sus tests (con un `fetch` falso y un servidor local) y `npm run check:prod` contra https://carellabs.com pasan, pero su primera ejecución en GitHub está por confirmar. Se confirma con `gh workflow run prod-check.yml` (debe terminar en verde) y viendo que el siguiente push a `main` también lo hace dentro de los 10 minutos de espera. Dudas concretas: que Cloudflare responda a las IPs de los runners (centros de datos) como a cualquier otra, sin un desafío de bots, y que `workflow_dispatch` y el cron aparezcan en la pestaña *Actions* tras fusionar. Como `audit.yml` y `codeql.yml`, su cron se desactiva tras 60 días sin actividad en el repositorio.
 - **Salida de etiqueta entre jobs cuando `pr-policy` falla**: el código del runner evalúa las `outputs` del job al terminar, falle o no un paso, y la documentación solo dice que se evalúan "al final de cada job". Que el job `label` las reciba con el job anterior en rojo se confirma con el PR `feat:` sin issue del apartado "Primer PR de prueba". Si no llegara, el efecto sería solo que ese PR no se etiqueta.
 - **`sha_pinning_required`**: todas las acciones están fijadas por SHA (incluida `treosh/lighthouse-ci-action`). Si una ejecución falla por una acción "no fijada", es una acción nueva o un cambio de Dependabot que perdió el SHA.
 - **Ruta exacta de los menús de la interfaz**: importación del repositorio en Workers (paso 6.1) y *Configuration Rules* (paso 7). Las interfaces se reorganizan con frecuencia.

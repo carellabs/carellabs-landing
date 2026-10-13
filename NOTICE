@@ -9,4 +9,12 @@ No cubre, y quedan con todos los derechos reservados:
 - las imágenes de previsualización (public/og-*.png),
 - el nombre y la marca "Carellabs" y su símbolo (public/favicon.svg).
 
+Esto incluye usarlos para entrenar modelos de inteligencia artificial (ver public/robots.txt).
+
 Puedes reutilizar el código; no publiques estos contenidos ni la marca como propios.
+
+De terceros:
+
+- La fuente JetBrains Mono (Copyright 2020 The JetBrains Mono Project Authors), que la web
+  sirve desde el paquete @fontsource-variable/jetbrains-mono, se distribuye con la licencia
+  SIL Open Font License, Version 1.1 (https://openfontlicense.org).

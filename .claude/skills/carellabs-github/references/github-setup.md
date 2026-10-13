@@ -1,6 +1,6 @@
 # Configuración de GitHub de `carellabs-landing` (capa 1)
 
-> **Pasos 0 a 4 ejecutados contra el repositorio real el 10-oct-2026, y los pasos 6 y 7 (Cloudflare Workers, fases 1 y 2) el 10 y el 11-oct-2026, con todas sus comprobaciones como se esperaba (ver "Verificado en la primera ejecución", al final). El apartado 4.3 (CodeQL) se añadió después; su workflow funciona desde el 11-oct-2026.**
+> **Pasos 0 a 4 ejecutados contra el repositorio real el 10-oct-2026 (el 5, la 2FA, lo aplicó el propietario desde la interfaz ese mismo día), y los pasos 6 y 7 (Cloudflare Workers, fases 1 y 2) el 10 y el 11-oct-2026, con todas sus comprobaciones como se esperaba (ver "Verificado en la primera ejecución", al final). El apartado 4.3 (CodeQL) se añadió después; su workflow funciona desde el 11-oct-2026.**
 > Los puntos que la documentación no deja cerrados (o que dependen de la interfaz) están en "No verificado", al final. Antes de ejecutar un paso, comprueba que la documentación enlazada sigue diciendo lo mismo.
 
 Se ejecuta **una sola vez**, por una persona (no por un agente), cuando:
@@ -359,6 +359,8 @@ echo | openssl s_client -connect carellabs.com:443 -servername carellabs.com 2>/
 
 ## Primer PR de prueba
 
+*Hecho con el PR #2 (10-oct-2026): salieron los tres checks con su nombre y `label` aparte, la etiqueta `type:docs` y solo *Squash and merge*, con el título del PR. Falta el último punto, que sigue en "No verificado".*
+
 Con todo configurado, abre un PR `docs: ...` pequeño y comprueba:
 
 - que aparecen los checks `test`, `lighthouse` y `pr-policy` con esos nombres exactos (y que `label` aparece aparte, sin ser obligatorio);
@@ -389,6 +391,8 @@ Los pasos 0 a 4 se ejecutaron contra el repositorio real y cada comprobación de
   - `pr-policy` daba por visible una referencia de cierre dentro de un comentario HTML **sin cerrar**. Ahora la descarta, y lee los comentarios de izquierda a derecha sin repetir la pasada: repetirla, que es lo que sugiere CodeQL, rechazaría referencias que sí se ven. Es una ayuda, no una frontera de seguridad. Con un `<!--` literal sin cerrar es más estricta que GitHub (escribe `Closes #N` antes), y no quita otras construcciones que GitHub tampoco pinta (`<?…?>`, `<![CDATA[…]]>`, `[//]: # (…)`).
   - El test de i18n no quitaba un `<SCRIPT>` en mayúsculas ni un `</script >` con espacio.
   - La comprobación de los `Contact` de `security.txt` era un falso positivo (comparaba elementos de una lista, no subcadenas). Ahora la comparación exacta es explícita.
+- **Node 24** (PR #12, 13-oct-2026): Workers Builds lee el `.nvmrc` nuevo (24.21.0) y la build de `main` terminó bien. El CI también lo lee (`node-version-file`).
+- **Una build de `main` que Cloudflare nunca creó** (PR #14, 13-oct-2026): el check de Workers Builds se quedó en `queued` y en el historial de builds (*Deployments > View build history*, o `…/production/builds` en el panel) no apareció ninguna para ese commit, así que producción siguió con la versión anterior. Reintentar la última build no sirve (vuelve a construir el commit anterior), y pedir otra vez el check desde GitHub tampoco: la API responde 404 a una cuenta de usuario, porque solo puede hacerlo la app. Las salidas son un *Deploy Hook* (*Settings > Builds*), la API de Workers Builds o fusionar otro PR, cuya build incluye lo anterior. Se eligió lo último.
 - **«Default setup» de CodeQL** (paso 4.3): la consulta devolvió `not-configured`, como debe estar para que el workflow pueda subir sus resultados.
 
 ## No verificado

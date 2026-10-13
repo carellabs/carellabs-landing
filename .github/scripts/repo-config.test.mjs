@@ -554,6 +554,14 @@ describe("ficheros del repositorio: avisos legales y seguridad", () => {
     assert.match(notice, /todos los derechos reservados/i);
     assert.match(notice, /MIT/);
   });
+
+  test("NOTICE cita la fuente que se redistribuye (JetBrains Mono) y su licencia (SIL OFL 1.1)", () => {
+    const notice = read("NOTICE");
+    // La web sirve los .woff2 de @fontsource-variable/jetbrains-mono: la OFL pide conservar su aviso.
+    assert.match(notice, /JetBrains Mono/);
+    assert.match(notice, /SIL Open Font License,? (Version )?1\.1/i);
+    assert.equal(JSON.parse(read("package.json")).dependencies?.["@fontsource-variable/jetbrains-mono"] !== undefined, true);
+  });
 });
 
 describe("wrangler.jsonc: Cloudflare Workers con solo assets estáticos", () => {

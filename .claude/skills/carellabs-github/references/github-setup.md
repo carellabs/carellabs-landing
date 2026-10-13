@@ -294,6 +294,8 @@ El script lee la configuración y la reenvía completa con solo `enable_js: fals
 
 **Registros CAA.** Limitan qué autoridades pueden emitir certificados para el dominio y sus subdominios. Con el DNS en Cloudflare basta con uno: *DNS > Records > Add record*, tipo `CAA`, nombre `@`, flags `0`, tag *Send violation reports to URL* (`iodef`) y valor `mailto:security@carellabs.com` (la frase de resumen del formulario, "…can issue certificates…", es genérica: un `iodef` no autoriza a nadie). En cuanto existe un CAA, Cloudflare añade por su cuenta, sin mostrarlos en el panel, los `issue` e `issuewild` de las autoridades que usa para el certificado universal ([doc](https://developers.cloudflare.com/ssl/edge-certificates/caa-records/)), así que la lista se mantiene sola. Si algún subdominio llega a usar otra autoridad, hay que añadirla con su propio `issue`.
 
+**Bots de IA: bloqueo en el borde sí, `robots.txt` gestionado no.** En *Security > Settings*, filtro *Bot traffic*, *Configure AI bot policies*: *Training* en *Block (on all pages)*, *Search* y *Agent* en *Allow*, y **Bot Preference Sync apagado** ([doc](https://developers.cloudflare.com/bots/additional-configurations/managed-robots-txt/)). Las políticas bloquean de verdad, en la red de Cloudflare; Bot Preference Sync, en cambio, reescribe el `robots.txt`: antepone al del repo un bloque propio de unas 170 líneas con una lista de rastreadores (también agentes como ChatGPT-User y buscadores como Baiduspider) y una línea `Content-Signal` que Lighthouse da por no válida (SEO 0,92 en PageSpeed). Con él apagado, la web sirve exactamente `public/robots.txt`, que está versionado y tiene tests. Si Cloudflare añade rastreadores de entrenamiento nuevos a su lista, conviene revisarla y llevarlos a la nuestra.
+
 ## 7. Comprobaciones tras cada fase
 
 Primero con la URL `*.workers.dev` (fase 1) y después con `carellabs.com` (fase 2). En los comandos, `HOST` es la que toque:
@@ -357,6 +359,13 @@ curl -s -H 'accept: application/dns-json' "https://cloudflare-dns.com/dns-query?
 echo | openssl s_client -connect carellabs.com:443 -servername carellabs.com 2>/dev/null | openssl x509 -noout -issuer -enddate
 ```
 
+**`robots.txt` sin añadidos de Cloudflare** (solo en la fase 2). El servido tiene que ser idéntico al del repo; si no, alguien ha vuelto a encender Bot Preference Sync:
+
+```bash
+curl -s "https://$HOST/robots.txt" | cmp - public/robots.txt && echo "robots.txt igual"
+curl -s -o /dev/null -w '%{http_code}\n' -A 'Mozilla/5.0 (compatible; GPTBot/1.2; +https://openai.com/gptbot)' "https://$HOST/"   # 403: entrenamiento bloqueado en el borde
+```
+
 ## Primer PR de prueba
 
 *Hecho con el PR #2 (10-oct-2026): salieron los tres checks con su nombre y `label` aparte, la etiqueta `type:docs` y solo *Squash and merge*, con el título del PR. Falta el último punto, que sigue en "No verificado".*
@@ -391,6 +400,7 @@ Los pasos 0 a 4 se ejecutaron contra el repositorio real y cada comprobación de
   - `pr-policy` daba por visible una referencia de cierre dentro de un comentario HTML **sin cerrar**. Ahora la descarta, y lee los comentarios de izquierda a derecha sin repetir la pasada: repetirla, que es lo que sugiere CodeQL, rechazaría referencias que sí se ven. Es una ayuda, no una frontera de seguridad. Con un `<!--` literal sin cerrar es más estricta que GitHub (escribe `Closes #N` antes), y no quita otras construcciones que GitHub tampoco pinta (`<?…?>`, `<![CDATA[…]]>`, `[//]: # (…)`).
   - El test de i18n no quitaba un `<SCRIPT>` en mayúsculas ni un `</script >` con espacio.
   - La comprobación de los `Contact` de `security.txt` era un falso positivo (comparaba elementos de una lista, no subcadenas). Ahora la comparación exacta es explícita.
+- **`robots.txt` gestionado por Cloudflare** (13-oct-2026): estaba encendido sin haberlo pedido y anteponía su bloque, con `Content-Signal` y bloqueos de agentes y de Baiduspider, al `robots.txt` del repo (3.857 bytes servidos frente a 598). Con Bot Preference Sync apagado y *Training* en *Block*, se sirve exactamente el del repo. Una petición que se presenta como GPTBot recibe 403, y como ChatGPT-User o Googlebot, 200.
 - **Node 24** (PR #12, 13-oct-2026): Workers Builds lee el `.nvmrc` nuevo (24.21.0) y la build de `main` terminó bien. El CI también lo lee (`node-version-file`).
 - **Una build de `main` que Cloudflare nunca creó** (PR #14, 13-oct-2026): el check de Workers Builds se quedó en `queued` y en el historial de builds (*Deployments > View build history*, o `…/production/builds` en el panel) no apareció ninguna para ese commit, así que producción siguió con la versión anterior. Reintentar la última build no sirve (vuelve a construir el commit anterior), y pedir otra vez el check desde GitHub tampoco: la API responde 404 a una cuenta de usuario, porque solo puede hacerlo la app. Las salidas son un *Deploy Hook* (*Settings > Builds*), la API de Workers Builds o fusionar otro PR, cuya build incluye lo anterior. Se eligió lo último.
 - **«Default setup» de CodeQL** (paso 4.3): la consulta devolvió `not-configured`, como debe estar para que el workflow pueda subir sus resultados.

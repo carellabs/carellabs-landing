@@ -103,7 +103,6 @@ for (const pg of PAGES) {
   });
 
   test(`${pg.path}: og:image points to a PNG that the site serves`, async ({ page, request }) => {
-    test.skip(!process.env.CI, "solo bloquea en CI; hasta que exista la imagen, en local se permite no tenerla");
     await page.goto(pg.path);
     const content = await page.locator('meta[property="og:image"]').getAttribute("content");
     expect(content, "no hay og:image").toBeTruthy();

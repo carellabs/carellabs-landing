@@ -367,6 +367,18 @@ describe("ficheros del repositorio", () => {
     assert.match(read(".gitignore"), /^\.claude\/launch\.json\s*$/m);
   });
 
+  test(".gitignore ignora la carpeta local de wrangler (.wrangler/)", () => {
+    assert.match(read(".gitignore"), /^\.wrangler\/\s*$/m);
+  });
+
+  test(".nvmrc y engines.node (package.json y lockfile) piden la misma versión de Node", () => {
+    const nvmrc = read(".nvmrc").trim();
+    // Control positivo: .nvmrc es una versión exacta (el CI y Workers Builds la leen tal cual).
+    assert.match(nvmrc, /^\d+\.\d+\.\d+$/);
+    assert.equal(JSON.parse(read("package.json")).engines?.node, `>=${nvmrc}`);
+    assert.equal(JSON.parse(read("package-lock.json")).packages[""].engines?.node, `>=${nvmrc}`);
+  });
+
   test("la licencia es MIT, a nombre de Fabrizio Carella y de 2026", () => {
     const licencia = read("LICENSE");
     assert.match(licencia, /^MIT License\s*$/m);
@@ -541,6 +553,14 @@ describe("ficheros del repositorio: avisos legales y seguridad", () => {
     assert.match(notice, /Carellabs/);
     assert.match(notice, /todos los derechos reservados/i);
     assert.match(notice, /MIT/);
+  });
+
+  test("NOTICE cita la fuente que se redistribuye (JetBrains Mono) y su licencia (SIL OFL 1.1)", () => {
+    const notice = read("NOTICE");
+    // La web sirve los .woff2 de @fontsource-variable/jetbrains-mono: la OFL pide conservar su aviso.
+    assert.match(notice, /JetBrains Mono/);
+    assert.match(notice, /SIL Open Font License,? (Version )?1\.1/i);
+    assert.equal(JSON.parse(read("package.json")).dependencies?.["@fontsource-variable/jetbrains-mono"] !== undefined, true);
   });
 });
 

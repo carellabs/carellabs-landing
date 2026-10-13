@@ -22,6 +22,8 @@ npm run preview    # sirve dist/ en local
 | Apps del laboratorio (nombre, estado, URL, stack) | `src/data/apps.json` |
 | Estilos / tokens de color y tipografía (oscuro por defecto, claro con `prefers-color-scheme`) | `src/styles/global.css` |
 | Estructura de la página (compone cabecera, secciones y pie) | `src/components/Landing.astro` |
+| Dominio, idiomas y sitemap | `astro.config.mjs` |
+| Qué pueden rastrear los bots (buscadores sí; los que entrenan modelos de IA, no) | `public/robots.txt` |
 | Una sección | `src/components/sections/` (`Hero`, `Profile`, `Lab`, `Experience`, `Contact`) |
 | Cabecera y pie | `src/components/SiteHeader.astro`, `src/components/SiteFooter.astro` |
 | `<head>`, SEO, fuente, esquema de color | `src/layouts/BaseLayout.astro` |
@@ -92,15 +94,6 @@ La issue es obligatoria **solo** para `feat` y `fix` (con `Closes #N` en el cuer
 - Skill del flujo (para humanos y agentes): [`.claude/skills/carellabs-github/SKILL.md`](.claude/skills/carellabs-github/SKILL.md)
 - Plantillas: [`PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md) e [`ISSUE_TEMPLATE/`](.github/ISSUE_TEMPLATE/)
 - Configuración única de GitHub (repo, ruleset, etiquetas, seguridad, Cloudflare): [`github-setup.md`](.claude/skills/carellabs-github/references/github-setup.md)
-
-## Pendiente antes de publicar
-
-- [x] Enlaces de GitHub apuntando a la cuenta real: `https://github.com/carellabs` (`es.json` y `en.json`)
-- [x] Email de contacto: `hola@carellabs.com` tiene su regla en el Email Routing de Cloudflare
-- [x] Imagen de previsualización en redes: `public/og-es.png` y `public/og-en.png` (1200×630, una por idioma con su titular). Se regeneran con `npm run og` si cambian los textos del hero
-- [x] Configurar GitHub (repo, ruleset, etiquetas, seguridad) siguiendo [`github-setup.md`](.claude/skills/carellabs-github/references/github-setup.md)
-- [x] Publicar en Cloudflare Workers: fase 1 comprobada en `*.workers.dev` y fase 2 comprobada en `carellabs.com` (apartado 7 de la guía)
-- [x] Propietario en GitHub: cuenta personal `carellabs` (variable `OWNER` de la guía)
 
 ## Despliegue
 

@@ -5,7 +5,7 @@ import type { Page } from "@playwright/test";
 export type HeaderBlock = { path: string; headers: Record<string, string> };
 
 /**
- * Lee `public/_headers` (formato de Cloudflare Pages): una línea sin sangría es una ruta; las
+ * Lee `public/_headers` (formato de los assets estáticos de Cloudflare Workers): una línea sin sangría es una ruta; las
  * líneas con sangría debajo son sus cabeceras `Nombre: valor`. Los nombres van en minúsculas.
  */
 export function readHeaders(file = "public/_headers"): HeaderBlock[] {
@@ -55,7 +55,7 @@ export type CspReport = { violations: string[]; consoleErrors: string[] };
 
 /**
  * Hace que las páginas de `page` se sirvan con la CSP del sitio. `astro preview` no lee
- * `_headers` (lo hace Cloudflare Pages), así que se añade a la respuesta del documento.
+ * `_headers` (lo hace Cloudflare Workers), así que se añade a la respuesta del documento.
  * Devuelve el informe vivo: cada evento `securitypolicyviolation` y cada error de consola
  * de CSP se van apuntando. Llamar antes de `page.goto`.
  */

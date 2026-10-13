@@ -30,6 +30,72 @@ test("the sitemap lists both languages and each URL declares the alternates of t
   }
 });
 
+/** Grupos de robots.txt: líneas `User-agent` seguidas y las reglas que vienen detrás. */
+function robotsGroups(text: string): { agents: string[]; rules: string[] }[] {
+  const groups: { agents: string[]; rules: string[] }[] = [];
+  let current: { agents: string[]; rules: string[] } | null = null;
+  for (const raw of text.split("\n")) {
+    const line = raw.replace(/#.*/, "").trim();
+    if (!line) continue;
+    const [key, ...rest] = line.split(":");
+    const value = rest.join(":").trim();
+    if (key!.toLowerCase() === "user-agent") {
+      if (!current || current.rules.length > 0) groups.push((current = { agents: [], rules: [] }));
+      current.agents.push(value.toLowerCase());
+    } else if (current && key!.toLowerCase() !== "sitemap") {
+      current.rules.push(`${key!.toLowerCase()}: ${value}`);
+    }
+  }
+  return groups;
+}
+
+// Rastreadores que recogen contenido para entrenar modelos de IA (los textos tienen todos los
+// derechos reservados, ver NOTICE). Los buscadores y los de búsqueda con IA siguen entrando.
+const AI_TRAINING_CRAWLERS = [
+  "GPTBot",
+  "ClaudeBot",
+  "anthropic-ai",
+  "Google-Extended",
+  "Applebot-Extended",
+  "CCBot",
+  "Bytespider",
+  "meta-externalagent",
+  "cohere-training-data-crawler",
+  "Diffbot",
+];
+
+test("robots.txt keeps search engines in and AI training crawlers out", () => {
+  const groups = robotsGroups(readFileSync("dist/robots.txt", "utf8"));
+  const groupOf = (agent: string) => groups.find((g) => g.agents.includes(agent.toLowerCase()));
+
+  // Control positivo: hay un grupo general, y deja entrar a todos.
+  const all = groupOf("*");
+  expect(all, "falta el grupo `User-agent: *`").toBeDefined();
+  expect(all!.rules).toContain("allow: /");
+  expect(all!.rules).not.toContain("disallow: /");
+
+  for (const crawler of AI_TRAINING_CRAWLERS) {
+    expect(groupOf(crawler)?.rules, `${crawler} no tiene \`Disallow: /\``).toContain("disallow: /");
+  }
+  // Los buscadores no tienen grupo propio: usan el general, que los deja entrar.
+  for (const engine of ["Googlebot", "Bingbot"]) {
+    expect(groupOf(engine), `${engine} no debe tener un grupo que lo bloquee`).toBeUndefined();
+  }
+});
+
+// Lighthouse (check obligatorio del CI) da el robots.txt por no válido ante una directiva que no
+// conoce, como `Content-Signal`, y la nota de SEO baja de 1. Solo las directivas estándar.
+test("robots.txt only uses standard directives (Lighthouse rejects unknown ones)", () => {
+  const directives = readFileSync("dist/robots.txt", "utf8")
+    .split("\n")
+    .map((line) => line.replace(/#.*/, "").trim())
+    .filter(Boolean)
+    .map((line) => line.split(":")[0]!.trim().toLowerCase());
+  // Control positivo: se han leído directivas de verdad.
+  expect(directives).toContain("user-agent");
+  expect(directives.filter((d) => !["user-agent", "allow", "disallow", "sitemap"].includes(d))).toEqual([]);
+});
+
 test("robots.txt points to the sitemap index, which points to the sitemap", () => {
   const robots = readFileSync("dist/robots.txt", "utf8");
   expect(robots).toMatch(new RegExp(`^Sitemap: ${SITE}/sitemap-index\\.xml\\s*$`, "m"));

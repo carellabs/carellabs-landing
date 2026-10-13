@@ -248,6 +248,31 @@ test("personJsonLd escapes hostile texts in every field: no `<` in the output an
   expect(data.url).toBe("https://example.test/en/");
 });
 
+// `sameAs` son los perfiles de la persona en otros sitios: solo URL https. Un enlace de contacto que no
+// lo sea (un `mailto:` el día que el correo se ponga junto a los perfiles) no es un perfil.
+test("personJsonLd puts only https profile URLs in sameAs, in order", () => {
+  const es = messages("es");
+  const links = [
+    { label: "Correo", href: "mailto:hola@carellabs.com" },
+    { label: "LinkedIn", href: "https://www.linkedin.com/in/ejemplo" },
+    { label: "Sin cifrar", href: "http://perfil.example/ejemplo" },
+    { label: "Relativo", href: "/en/" },
+    { label: "Script", href: "javascript:alert(1)" },
+    { label: "Roto", href: "no es una url" },
+    { label: "Teléfono", href: "tel:+34000000000" },
+    { label: "GitHub", href: "https://github.com/ejemplo" },
+  ];
+  const data = JSON.parse(
+    personJsonLd({ ...es, contact: { ...es.contact, links } }, new URL("https://example.test/")),
+  );
+  expect(data.sameAs).toEqual(["https://www.linkedin.com/in/ejemplo", "https://github.com/ejemplo"]);
+
+  // Control positivo: con solo enlaces https no se pierde ninguno (los de verdad del sitio).
+  const real = JSON.parse(personJsonLd(es, new URL("https://example.test/")));
+  expect(real.sameAs).toEqual(es.contact.links.map((link: { href: string }) => link.href));
+  expect(real.sameAs).toHaveLength(2);
+});
+
 // Las dos páginas describen a la misma persona: comparten `@id` (el origen del sitio + /#person), que no
 // es la URL de ninguna de ellas, para que un buscador las una en una sola entidad.
 test("personJsonLd gives the same @id, built from the site origin, to the page of each language", () => {

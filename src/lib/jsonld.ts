@@ -16,6 +16,9 @@ export interface PersonTexts {
   contact: { links: { href: string }[] };
 }
 
+/** Una URL https absoluta: lo único que cuenta como perfil en `sameAs`. */
+const isHttpsUrl = (href: string) => URL.canParse(href) && new URL(href).protocol === "https:";
+
 /**
  * El JSON-LD de schema.org `Person` de una página, ya serializado y escapado. Es lo único que el layout
  * pone dentro del `<script type="application/ld+json">`: ningún texto puede cerrar la etiqueta.
@@ -32,7 +35,8 @@ export function personJsonLd(t: PersonTexts, url: URL): string {
     name: t.hero.name,
     jobTitle: t.meta.jobTitle,
     url: url.href,
-    sameAs: t.contact.links.map((link) => link.href),
+    // Los perfiles en otros sitios: de los enlaces de contacto, solo los https (no un `mailto:`, por ejemplo).
+    sameAs: t.contact.links.map((link) => link.href).filter(isHttpsUrl),
     address: { "@type": "PostalAddress", addressLocality: t.meta.locality, addressCountry: "ES" },
     knowsAbout: t.hero.note,
   });

@@ -4,6 +4,7 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { EventEmitter, once } from "node:events";
 import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { join, dirname, resolve } from "node:path";
@@ -1252,16 +1253,58 @@ describe("main: la CLI", () => {
   });
 });
 
+/**
+ * El puerto más alto de la lista de bloqueo de puertos del estándar Fetch
+ * (https://fetch.spec.whatwg.org/#port-blocking): `fetch` se niega a conectar con ellos. Los vetados
+ * están todos entre el 1 y el 10080 (en Node 24.21 son 82), así que basta con quedarse por encima.
+ */
+const PUERTO_MAS_ALTO_VETADO_POR_FETCH = 10080;
+
+/** Cuántos puertos distintos se prueban antes de rendirse (uno ocupado o prohibido se salta y se prueba otro). */
+const INTENTOS_DE_PUERTO = 200;
+
+/** Un puerto al azar entre el 10081 y el 65535: nunca uno de los que `fetch` veta. */
+function puertoAlAzar() {
+  return (
+    PUERTO_MAS_ALTO_VETADO_POR_FETCH + 1 + Math.floor(Math.random() * (65535 - PUERTO_MAS_ALTO_VETADO_POR_FETCH))
+  );
+}
+
+/**
+ * Pone `server` a escuchar en el bucle local, en un puerto que `fetch` acepte. El puerto lo elige el
+ * test y no el sistema (`listen(0)`), que en Windows puede dar uno de los vetados. Si el puerto está
+ * ocupado (`EADDRINUSE`) o prohibido (`EACCES`: Windows reserva rangos enteros para Hyper-V y Docker),
+ * prueba con otro.
+ *
+ * @param {import("node:http").Server} server
+ * @param {() => number} [elegir] de dónde sale el puerto de cada intento
+ */
+async function escucharEnPuertoValido(server, elegir = puertoAlAzar) {
+  for (let intento = 0; intento < INTENTOS_DE_PUERTO; intento++) {
+    try {
+      server.listen(elegir(), "127.0.0.1");
+      await once(server, "listening");
+      return;
+    } catch (error) {
+      if (error.code !== "EADDRINUSE" && error.code !== "EACCES") throw error;
+    }
+  }
+  throw new Error(
+    `no se pudo abrir un puerto libre por encima del ${PUERTO_MAS_ALTO_VETADO_POR_FETCH} en ${INTENTOS_DE_PUERTO} intentos`,
+  );
+}
+
 describe("request con el fetch real: las redirecciones no se siguen", () => {
-  /** Un servidor local que apunta qué se le pide. */
-  async function servidor(manejador) {
+  /** Un servidor local que apunta qué se le pide (en un puerto que `fetch` acepte). */
+  async function servidor(manejador, elegirPuerto) {
     const visitas = [];
     const server = createServer((req, res) => {
       visitas.push(req.url);
       manejador(req, res);
     });
-    await new Promise((listo) => server.listen(0, "127.0.0.1", listo));
+    await escucharEnPuertoValido(server, elegirPuerto);
     return {
+      server,
       visitas,
       origen: `http://127.0.0.1:${server.address().port}`,
       cerrar: () => {
@@ -1270,6 +1313,126 @@ describe("request con el fetch real: las redirecciones no se siguen", () => {
       },
     };
   }
+
+  // Por qué el servidor de pruebas elige él mismo su puerto: `fetch` (el estándar Fetch) se niega a
+  // conectar con un puerto de su lista de bloqueo (6000, 6667, 1719, 10080...) y falla con «bad port»
+  // sin llegar a pedir nada. Con `listen(0)` el sistema puede dar uno de esos puertos: en Linux (rango
+  // dinámico 32768-60999) nunca, pero en Windows el rango empieza en el 1024 y fallaba una de cada ~100
+  // veces. Soltar el puerto y pedir otro tampoco basta: Windows los reparte seguidos, y con el rango
+  // entero por debajo del 10080 todos los reintentos caen también por debajo.
+  test("fetch veta de verdad los puertos de su lista de bloqueo, hasta el 10080", async () => {
+    for (const puerto of [6000, 6667, 1723, 10080]) {
+      const r = await prod.request(fetch, `http://127.0.0.1:${puerto}/`, 2000);
+      assert.equal(r.ok, false, `el puerto ${puerto}`);
+      assert.match(r.error, /bad port/, `el puerto ${puerto}`);
+    }
+    // Control positivo: el siguiente puerto no está vetado (falla por otro motivo o responde).
+    const r = await prod.request(fetch, "http://127.0.0.1:10081/", 2000);
+    assert.doesNotMatch(r.ok ? "" : r.error, /bad port/);
+  });
+
+  test("los puertos que elige el servidor de pruebas son enteros entre el 10081 y el 65535, repartidos por todo el rango", () => {
+    const muestras = Array.from({ length: 20_000 }, () => puertoAlAzar());
+    assert.ok(muestras.every((p) => Number.isInteger(p) && p > 10080 && p <= 65535));
+    // Control positivo: no es un valor fijo ni se queda en una esquina del rango.
+    assert.ok(Math.min(...muestras) < 20_000, `el menor fue ${Math.min(...muestras)}`);
+    assert.ok(Math.max(...muestras) > 60_000, `el mayor fue ${Math.max(...muestras)}`);
+  });
+
+  test("los extremos del rango son el 10081 y el 65535 (sin pasarse: el 65536 no existe)", (t) => {
+    // (un solo simulacro, que `t` restaura al acabar el test: simular dos veces el mismo método no restaura bien)
+    let azar = 0;
+    t.mock.method(Math, "random", () => azar);
+    assert.equal(puertoAlAzar(), 10081);
+    azar = 1 - Number.EPSILON; // el mayor valor posible de Math.random()
+    assert.equal(puertoAlAzar(), 65535);
+  });
+
+  test("el servidor de pruebas elige su puerto con el ayudante (no con listen(0))", async () => {
+    let elegidos = 0;
+    const s = await servidor(() => {}, () => {
+      elegidos++;
+      return puertoAlAzar();
+    });
+    try {
+      assert.ok(elegidos >= 1);
+    } finally {
+      await s.cerrar();
+    }
+  });
+
+  test("si el puerto elegido está ocupado, prueba con otro", async () => {
+    const ocupante = await servidor(() => {});
+    const puertoOcupado = ocupante.server.address().port;
+    const segundo = createServer();
+    try {
+      let elegidos = 0;
+      await escucharEnPuertoValido(segundo, () => (++elegidos <= 2 ? puertoOcupado : puertoAlAzar()));
+      assert.ok(elegidos >= 3, `se eligió ${elegidos} veces`);
+      assert.notEqual(segundo.address().port, puertoOcupado);
+      assert.ok(segundo.listening);
+    } finally {
+      segundo.close();
+      await ocupante.cerrar();
+    }
+  });
+
+  test("un puerto prohibido (EACCES: en Windows, los rangos que reserva Hyper-V) se salta igual que uno ocupado", async () => {
+    const intentos = [];
+    const servidorFalso = new EventEmitter();
+    servidorFalso.listen = (puerto) => {
+      intentos.push(puerto);
+      queueMicrotask(() => {
+        if (intentos.length < 3) servidorFalso.emit("error", Object.assign(new Error("listen EACCES"), { code: "EACCES" }));
+        else servidorFalso.emit("listening");
+      });
+    };
+    await escucharEnPuertoValido(servidorFalso, () => 20_000 + intentos.length);
+    assert.deepEqual(intentos, [20_000, 20_001, 20_002]);
+  });
+
+  test("si todos los puertos que elige están ocupados, se rinde con un error claro en vez de dar vueltas para siempre", async () => {
+    const ocupante = await servidor(() => {});
+    const puertoOcupado = ocupante.server.address().port;
+    try {
+      let elegidos = 0;
+      await assert.rejects(
+        escucharEnPuertoValido(createServer(), () => {
+          elegidos++;
+          return puertoOcupado;
+        }),
+        /no se pudo abrir un puerto libre por encima del 10080 en 200 intentos/,
+      );
+      assert.equal(elegidos, 200);
+    } finally {
+      await ocupante.cerrar();
+    }
+  });
+
+  test("un error que no es de puerto ocupado se propaga a la primera, sin reintentos", async () => {
+    let elegidos = 0;
+    await assert.rejects(
+      escucharEnPuertoValido(createServer(), () => {
+        elegidos++;
+        return 70_000; // no es un puerto válido
+      }),
+      { code: "ERR_SOCKET_BAD_PORT" },
+    );
+    assert.equal(elegidos, 1);
+  });
+
+  test("el servidor de pruebas real nunca se queda en un puerto vetado ni fuera del bucle local (300 aperturas)", async () => {
+    for (let i = 0; i < 300; i++) {
+      const s = await servidor(() => {});
+      try {
+        assert.ok(Number(new URL(s.origen).port) > 10080, `puerto ${s.origen}`);
+        // Solo en el bucle local: nunca se abre un puerto a toda la red.
+        assert.equal(s.server.address().address, "127.0.0.1");
+      } finally {
+        await s.cerrar();
+      }
+    }
+  });
 
   test("un 307 se devuelve tal cual (estado y Location) y una redirección a otro servidor no genera tráfico hacia él", async () => {
     const otro = await servidor((req, res) => res.end("no deberías estar aquí"));

@@ -15,6 +15,10 @@ User-agent: Bytespider
 User-agent: meta-externalagent
 User-agent: cohere-training-data-crawler
 User-agent: Diffbot
+User-agent: MistralAI-Training
+User-agent: cohere-ai
+User-agent: omgili
+User-agent: Claude-Web
 Disallow: /
 
 Sitemap: https://carellabs.com/sitemap-index.xml

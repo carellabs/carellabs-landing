@@ -62,6 +62,10 @@ const AI_TRAINING_CRAWLERS = [
   "meta-externalagent",
   "cohere-training-data-crawler",
   "Diffbot",
+  "MistralAI-Training",
+  "cohere-ai",
+  "omgili",
+  "Claude-Web",
 ];
 
 test("robots.txt keeps search engines in and AI training crawlers out", () => {

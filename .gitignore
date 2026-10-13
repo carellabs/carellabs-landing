@@ -11,3 +11,6 @@ playwright-report/
 .claude/settings.local.json
 _brief/
 .claude/launch.json
+
+# Caché local de wrangler
+.wrangler/

@@ -3,7 +3,7 @@ import { test, expect } from "@playwright/test";
 import { enforceCsp, headersFor, parseCsp, readHeaders, siteCsp } from "./headers";
 import { SCHEMES } from "./viewports";
 
-// Lo que Cloudflare Pages va a servir (public/_headers) y si la web funciona con esas cabeceras.
+// Lo que Cloudflare Workers sirve (public/_headers, en los assets estáticos) y si la web funciona con esas cabeceras.
 
 test("public/_headers sets the baseline security headers on every path", () => {
   const all = headersFor("/*");

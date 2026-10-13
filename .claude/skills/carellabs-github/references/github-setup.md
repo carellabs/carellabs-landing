@@ -307,7 +307,7 @@ El script lee la configuración y la reenvía completa con solo `enable_js: fals
 - que `security.txt` caduque dentro de más de 60 días: si quedan 60 o menos, falla, y se renueva cambiando `Expires` en `public/.well-known/security.txt` (como máximo, un año vista);
 - que `https://www.carellabs.com/en/?x=1` responda 301 a `https://carellabs.com/en/?x=1`.
 
-Si algo falla, GitHub avisa por correo (no abre issues) y el check no es obligatorio para fusionar. Solo importa el último despliegue: una ejecución nueva de este workflow en `main` (otro push, el cron o un disparo manual) cancela la que siga en marcha, así que dos pushes seguidos no dan un falso fallo del primero. Para lanzarlo a mano:
+Si algo falla, GitHub avisa por correo (no abre issues) y el check no es obligatorio para fusionar. Solo importa el último despliegue: una ejecución nueva del mismo tipo de evento en `main` cancela la que siga en marcha, así que dos pushes seguidos no dan un falso fallo del primero. El cron y los disparos manuales no cancelan un push que está esperando el despliegue. Para lanzarlo a mano:
 
 ```bash
 gh workflow run prod-check.yml     # compara producción con el build de main

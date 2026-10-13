@@ -637,12 +637,17 @@ describe("prod-check.yml: comprobación de producción (informativa, no bloquea 
     assert.match(sinEspera[0], /^ {8}if:\s*github\.event_name != 'push'\s*$/m);
   });
 
-  test("en producción solo importa el último despliegue: un grupo por rama y una ejecución nueva cancela la anterior", () => {
+  test("en producción solo importa el último despliegue: un grupo por evento y rama, y una ejecución nueva cancela la anterior", () => {
     // Propia de este workflow, no la de ci.yml (que agrupa por commit para que ninguno se quede sin CI):
     // dos pushes seguidos no deben dar un falso fallo del primero, que espera un despliegue ya superado.
+    // El evento va en el grupo: el cron o un disparo manual no deben cancelar un push que está esperando
+    // el despliegue (su sustituto no espera y podría dar un falso fallo).
     const bloque = /^concurrency:\s*\n((?: {2}\S.*\n)+)/m.exec(prodCheck())?.[1];
     assert.ok(bloque, "sin bloque `concurrency:`");
-    assert.equal(bloque, '  group: "${{ github.workflow }}-${{ github.ref }}"\n  cancel-in-progress: true\n');
+    assert.equal(
+      bloque,
+      '  group: "${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}"\n  cancel-in-progress: true\n',
+    );
   });
 
   test("tiene un límite de tiempo mayor que la espera de 10 minutos", () => {

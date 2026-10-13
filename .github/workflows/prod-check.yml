@@ -28,8 +28,10 @@ permissions:
 # Aquí solo importa el último despliegue: una ejecución nueva cancela la anterior. Así, dos pushes
 # seguidos no dan un falso fallo del primero, que estaría esperando un despliegue ya superado por el
 # segundo. (ci.yml hace lo contrario, un grupo por commit, porque allí cada commit necesita su CI.)
+# El evento va en el grupo: el cron o un disparo manual no cancelan un push que espera el despliegue
+# (quien lo sustituiría no espera y podría dar un falso fallo).
 concurrency:
-  group: "${{ github.workflow }}-${{ github.ref }}"
+  group: "${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}"
   cancel-in-progress: true
 
 jobs:

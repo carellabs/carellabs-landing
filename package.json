@@ -11,6 +11,7 @@
     "build": "astro build",
     "preview": "astro preview",
     "og": "node scripts/og/render.mjs",
+    "icons": "node scripts/icons/render.mjs",
     "check": "astro check",
     "test": "playwright test",
     "test:scripts": "node --test \".github/scripts/*.test.mjs\"",

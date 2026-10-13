@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { test, expect } from "@playwright/test";
 import { serializeJsonLd } from "../src/lib/jsonld";
@@ -255,6 +256,105 @@ test("the OG images were rendered from the current hero texts (run `npm run og` 
       role: t.hero.role,
     });
   }
+});
+
+// Icono para iOS (apple-touch-icon): iOS rellena la transparencia con negro, así que es un PNG de
+// 180x180 opaco, con el favicon centrado sobre el fondo oscuro de la marca. Lo genera `npm run icons`.
+const ICON = "public/apple-touch-icon.png";
+const hex = (color: string) => [1, 3, 5].map((i) => parseInt(color.slice(i, i + 2), 16));
+/** El fondo oscuro de la marca: el primer `--bg` de global.css (el de `:root`; el claro va más abajo). */
+const brandBackground = () =>
+  /--bg:\s*(#[0-9a-f]{6})/i.exec(readFileSync("src/styles/global.css", "utf8"))![1]!.toLowerCase();
+
+for (const path of ["/", "/en/", "/no-existe"]) {
+  test(`${path}: links the apple-touch-icon and the site serves it as a PNG`, async ({ page, request }) => {
+    await page.goto(path);
+    const links = page.locator('link[rel="apple-touch-icon"]');
+    await expect(links).toHaveCount(1);
+    await expect(links).toHaveAttribute("href", "/apple-touch-icon.png");
+
+    const res = await request.get("/apple-touch-icon.png");
+    expect(res.status(), "GET /apple-touch-icon.png").toBe(200);
+    expect(res.headers()["content-type"], "GET /apple-touch-icon.png").toMatch(/^image\/png\b/);
+  });
+}
+
+test("public/apple-touch-icon.png is a 180x180 PNG without an alpha channel", () => {
+  const png = readFileSync(ICON);
+  expect(png.subarray(1, 4).toString("ascii")).toBe("PNG");
+  expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([180, 180]);
+  // 8 bits por canal y tipo de color 2 (RGB): los tipos 4 y 6 llevan canal alfa, y iOS lo rellenaría de negro.
+  expect(png[24]).toBe(8);
+  expect(png[25]).toBe(2);
+  // Control positivo: un PNG con canal alfa (aquí uno RGBA de 1x1) tiene otro tipo de color, y el criterio lo distingue.
+  const rgba = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    "base64",
+  );
+  expect(rgba[25], "el PNG de control debería ser RGBA").toBe(6);
+});
+
+test("the icon is the favicon centred on an opaque brand background", async ({ page }) => {
+  const [r, g, b] = hex(brandBackground());
+  await page.goto("/");
+  const icon = await page.evaluate(async () => {
+    const blob = await (await fetch("/apple-touch-icon.png")).blob();
+    const bitmap = await createImageBitmap(blob, { colorSpaceConversion: "none" });
+    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+    const context = canvas.getContext("2d")!;
+    context.drawImage(bitmap, 0, 0);
+    const { data, width, height } = context.getImageData(0, 0, bitmap.width, bitmap.height);
+    return { data: Array.from(data), width, height };
+  });
+  expect([icon.width, icon.height]).toEqual([180, 180]);
+  const at = (x: number, y: number) => (y * icon.width + x) * 4;
+  const pixel = (x: number, y: number) => icon.data.slice(at(x, y), at(x, y) + 4);
+
+  // Opaco de punta a punta, y las cuatro esquinas (donde iOS recorta) del fondo de la marca.
+  expect(icon.data.filter((_, i) => i % 4 === 3).every((alpha) => alpha === 255), "hay píxeles transparentes").toBe(
+    true,
+  );
+  for (const [x, y] of [[0, 0], [179, 0], [0, 179], [179, 179]] as const) {
+    expect(pixel(x, y), `esquina (${x}, ${y})`).toEqual([r, g, b, 255]);
+  }
+
+  // Lo dibujado es la marca: el trazo claro y la barra ámbar del favicon están, con sus colores exactos.
+  const has = (color: number[]) => {
+    for (let i = 0; i < icon.data.length; i += 4) if (color.every((c, k) => icon.data[i + k] === c)) return true;
+    return false;
+  };
+  expect(has(hex("#f2b13a")), "falta el ámbar de la marca").toBe(true);
+  expect(has(hex("#ededea")), "falta el trazo claro de la marca").toBe(true);
+
+  // Centrada y con margen: la marca (todo lo que no es fondo) ocupa entre el 40 % y el 50 % del ancho
+  // y del alto, y sus márgenes izquierdo/derecho y superior/inferior no difieren en más de 8 px
+  // (el favicon, tal cual, deja la marca unas 0,75 de sus 32 unidades a la derecha del centro).
+  // Se cuenta como fondo lo que difiere de él en 4 niveles o menos por canal: el favicon lleva su propio
+  // cuadrado redondeado del mismo color y el suavizado de sus esquinas deja píxeles 1 nivel más oscuros.
+  let [x0, y0, x1, y1] = [icon.width, icon.height, -1, -1];
+  for (let y = 0; y < icon.height; y++) {
+    for (let x = 0; x < icon.width; x++) {
+      const p = pixel(x, y);
+      if (Math.max(Math.abs(p[0]! - r!), Math.abs(p[1]! - g!), Math.abs(p[2]! - b!)) > 4) [x0, y0, x1, y1] = [Math.min(x0, x), Math.min(y0, y), Math.max(x1, x), Math.max(y1, y)];
+    }
+  }
+  const [width, height] = [x1 - x0 + 1, y1 - y0 + 1];
+  expect(width / icon.width, "ancho de la marca").toBeGreaterThanOrEqual(0.4);
+  expect(width / icon.width, "ancho de la marca").toBeLessThanOrEqual(0.5);
+  expect(height / icon.height, "alto de la marca").toBeGreaterThanOrEqual(0.4);
+  expect(height / icon.height, "alto de la marca").toBeLessThanOrEqual(0.5);
+  expect(Math.abs(x0 - (icon.width - 1 - x1)), "margen izquierdo frente al derecho").toBeLessThanOrEqual(8);
+  expect(Math.abs(y0 - (icon.height - 1 - y1)), "margen superior frente al inferior").toBeLessThanOrEqual(8);
+});
+
+test("the apple-touch-icon was rendered from the current favicon and brand background (run `npm run icons` after changing them)", () => {
+  // Mismo hash que scripts/icons/render.mjs: sha-256 del SVG con los saltos de línea normalizados.
+  const svg = readFileSync("public/favicon.svg", "utf8").replaceAll("\r\n", "\n");
+  const rendered = JSON.parse(readFileSync("scripts/icons/rendered-from.json", "utf8"));
+  expect(rendered, "public/apple-touch-icon.png no refleja public/favicon.svg ni el fondo de src/styles/global.css").toEqual({
+    favicon: createHash("sha256").update(svg).digest("hex"),
+    background: brandBackground(),
+  });
 });
 
 test("the build publishes /.well-known/security.txt", () => {

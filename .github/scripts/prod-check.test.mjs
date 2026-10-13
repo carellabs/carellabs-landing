@@ -1,6 +1,8 @@
-// Tests de prod-check.mjs (la comprobación de producción). Sin red ni navegador: se inyecta
-// un `fetch` falso que devuelve la respuesta correcta (la comprobación pasa) o una incorrecta
-// (falla, con su mensaje), y un reloj falso para el modo espera y para la caducidad.
+// Tests de prod-check.mjs (la comprobación de producción). No tocan internet ni abren un navegador:
+// casi todo usa un `fetch` falso que devuelve la respuesta correcta (la comprobación pasa) o una
+// incorrecta (falla, con su mensaje), y un reloj falso para el modo espera, el reintento y la caducidad.
+// Hay dos excepciones: unos servidores `node:http` en 127.0.0.1 (solo el bucle local) prueban con el
+// `fetch` real que no se siguen las redirecciones, y unos procesos hijo de `node` prueban la CLI.
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
@@ -46,7 +48,7 @@ const NOT_FOUND = "<html><body>404</body></html>";
 const ROBOTS = "User-agent: *\nAllow: /\n";
 const SECURITY_TXT = "Contact: mailto:security@example.test\nExpires: 2027-09-30T00:00:00.000Z\n";
 
-/** «Ahora» de los tests: faltan 352 días para el Expires de SECURITY_TXT. */
+/** «Ahora» de los tests: faltan 351 días y medio para el Expires de SECURITY_TXT (se muestran 351). */
 const NOW = Date.parse("2026-10-13T12:00:00.000Z");
 const DAY = 86_400_000;
 

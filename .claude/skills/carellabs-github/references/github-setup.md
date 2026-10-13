@@ -316,6 +316,8 @@ npm run build && npm run check:prod   # lo mismo en local, contra https://carell
 
 `npm run check:prod` admite `--site <url>`, `--dist <carpeta>` y `--wait <segundos>`; está pensado para el dominio de producción (también pide `www.<dominio>`), así que contra un `*.workers.dev` la comprobación de `www` falla. Siguen siendo manuales los pasos que un runner no puede hacer: la consola del navegador sin violaciones de CSP, el CAA y el certificado (el DNS de la zona) y la respuesta a un user agent de bot (depende de la IP, y los runners de GitHub están en centros de datos). Comparar el HTML byte a byte solo es posible porque el build es reproducible: el mismo commit genera siempre el mismo HTML. Por eso el año del pie (`© 2026`) está escrito en `src/components/SiteFooter.astro` (el año de la primera publicación) y no sale de la fecha de construcción, y un test de `repo-config.test.mjs` impide que algo de `src/` o de `astro.config.mjs` lea la fecha (`new Date(`, `Date(`, `Date.now(`).
 
+**Desde España, en local, puede fallar durante el fútbol.** Mientras hay partido, LaLiga hace que los operadores españoles bloqueen IPs de Cloudflare (ver https://hayahora.futbol) y `carellabs.com` deja de responder desde tu red: `npm run check:prod` fallará entonces con «sin respuesta» o con tiempos agotados, sin que nada esté roto (comprueba antes con `curl -s -o /dev/null -w '%{http_code}' --max-time 10 https://carellabs.com/`). El workflow no se ve afectado: los runners de GitHub están fuera de España.
+
 Los comandos de abajo hacen a mano lo mismo (y algo más). Primero con la URL `*.workers.dev` (fase 1) y después con `carellabs.com` (fase 2). En los comandos, `HOST` es la que toque:
 
 ```bash

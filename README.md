@@ -99,7 +99,7 @@ La issue es obligatoria **solo** para `feat` y `fix` (con `Closes #N` en el cuer
 
 ## Despliegue
 
-Cloudflare Workers con la integración Git (Workers Builds): la web se publica como assets estáticos de un Worker sin código, configurado en `wrangler.jsonc` (`dist/`, 404 propia, una vista previa por PR, sin telemetría). Build command: `npm run build`. Deploy command: `npx wrangler deploy`. Las ramas de los PR usan el comando de serie, `npx wrangler preview`. Se hace en dos fases: primero solo en `*.workers.dev`, para comprobar cabeceras y CSP en Cloudflare, y después con el dominio `carellabs.com` en `wrangler.jsonc`. Pasos en el apartado 6 de la [guía de configuración](.claude/skills/carellabs-github/references/github-setup.md) y comprobaciones en su apartado 7, (el workflow `Producción` automatiza casi todas, cada día y tras cada push a `main`).
+Cloudflare Workers con la integración Git (Workers Builds): la web se publica como assets estáticos de un Worker sin código, configurado en `wrangler.jsonc` (`dist/`, 404 propia, una vista previa por PR, sin telemetría). Build command: `npm run build`. Deploy command: `npx wrangler deploy`. Las ramas de los PR usan el comando de serie, `npx wrangler preview`. Se hace en dos fases: primero solo en `*.workers.dev`, para comprobar cabeceras y CSP en Cloudflare, y después con el dominio `carellabs.com` en `wrangler.jsonc`. Pasos en el apartado 6 de la [guía de configuración](.claude/skills/carellabs-github/references/github-setup.md) y comprobaciones en su apartado 7 (el workflow `Producción` automatiza casi todas, cada día y tras cada push a `main`).
 
 ## Seguridad
 

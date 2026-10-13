@@ -60,6 +60,27 @@ test("es.json and en.json have exactly the same keys", () => {
   expect(en).toEqual(es);
 });
 
+// El rol y la ciudad están escritos una vez (`meta.jobTitle`, `meta.locality`, que usan los datos
+// estructurados) y repetidos a mano en otros textos: si cambian, esos textos no pueden quedarse con el
+// valor viejo.
+for (const lang of ["es", "en"] as const) {
+  test(`${lang}: hero.role is «jobTitle · locality» and the image alt text names both`, () => {
+    const t = messages(lang) as {
+      hero: { role: string };
+      meta: { jobTitle: string; locality: string; ogImageAlt: string };
+    };
+    // Control positivo: se han leído un rol y una ciudad de verdad.
+    expect(t.meta.jobTitle.length).toBeGreaterThan(3);
+    expect(t.meta.locality.length).toBeGreaterThan(3);
+
+    expect(t.hero.role, "hero.role debe ser `${meta.jobTitle} · ${meta.locality}`").toBe(
+      `${t.meta.jobTitle} · ${t.meta.locality}`,
+    );
+    expect(t.meta.ogImageAlt, "meta.ogImageAlt debe nombrar el rol (meta.jobTitle)").toContain(t.meta.jobTitle);
+    expect(t.meta.ogImageAlt, "meta.ogImageAlt debe nombrar la ciudad (meta.locality)").toContain(t.meta.locality);
+  });
+}
+
 // Una clave cuenta como usada si alguna plantilla (o módulo de src/lib) escribe `t.<ruta>` (p. ej. `t.lab.title`; `t`,
 // `es` o `en` son los objetos de textos), o usa un padre suyo como un todo (`t.lab.status[app.status]`,
 // `t.hero.note.map(...)`). La ruta tiene que empezar justo tras el objeto: `t.nav.lab` no usa `lab.*`.

@@ -5,7 +5,7 @@
   },
   "site": {
     "brand": "Carellabs",
-    "language": "Language",
+    "switchToName": "Español",
     "switchTo": "ES",
     "switchHref": "/"
   },
@@ -121,6 +121,6 @@
     "title": "404 · Carellabs",
     "description": "Page not found",
     "heading": "This page doesn't exist.",
-    "home": "Home (EN)"
+    "home": "Back to home"
   }
 }

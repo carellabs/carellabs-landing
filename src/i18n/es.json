@@ -5,7 +5,7 @@
   },
   "site": {
     "brand": "Carellabs",
-    "language": "Idioma",
+    "switchToName": "English",
     "switchTo": "EN",
     "switchHref": "/en/"
   },

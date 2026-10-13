@@ -81,6 +81,16 @@ for (const pg of PAGES) {
     await expect(page.locator('meta[property="og:url"]')).toHaveAttribute("content", CANONICAL[pg.lang]);
   });
 
+  // El año del pie es el de la primera publicación, no el de la construcción: el mismo commit tiene
+  // que dar siempre el mismo HTML (prod-check lo compara byte a byte con producción). Este test falla
+  // en cuanto el año deje de ser el escrito en el código, p. ej. si se vuelve a calcular con la fecha.
+  test(`${pg.path}: the footer carries the publication year (2026), not the build year`, async ({ page }) => {
+    await page.goto(pg.path);
+    const copyright = page.locator(".foot p span").first();
+    await expect(copyright).toHaveCount(1);
+    await expect(copyright).toHaveText(/^© 2026 \S/);
+  });
+
   test(`${pg.path}: description and social meta are present`, async ({ page }) => {
     await page.goto(pg.path);
     await expect(page.locator('meta[name="description"]')).toHaveAttribute("content", /.{40,}/);

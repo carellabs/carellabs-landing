@@ -659,6 +659,45 @@ describe("prod-check.yml: comprobación de producción (informativa, no bloquea 
   });
 });
 
+describe("src/: el build es reproducible (el mismo commit da siempre el mismo HTML)", () => {
+  /** Lo que haría depender el HTML de cuándo se construye. */
+  const LEE_LA_FECHA = /\bnew\s+Date\s*\(|\bDate\s*\.\s*now\s*\(/;
+
+  /** Los ficheros de código de src/ (componentes, páginas y scripts que se compilan al sitio). */
+  const codigoDeSrc = () =>
+    readdirSync(join(ROOT, "src"), { recursive: true })
+      .map(String)
+      .filter((f) => /\.(astro|[cm]?[jt]sx?)$/.test(f))
+      .map((f) => ({ file: f.split("\\").join("/"), text: read(join("src", f)) }));
+
+  test("ningún fichero de src/ lee la fecha (new Date( o Date.now()): el año del pie, p. ej., sale del código", () => {
+    const ficheros = codigoDeSrc();
+    // Control positivo: se están revisando ficheros de verdad, de los dos tipos.
+    assert.ok(ficheros.length >= 10, `solo ${ficheros.length} ficheros en src/`);
+    assert.ok(ficheros.some((f) => f.file.endsWith(".astro")));
+    assert.ok(ficheros.some((f) => f.file.endsWith(".ts")));
+
+    const culpables = ficheros.filter((f) => LEE_LA_FECHA.test(f.text)).map((f) => `src/${f.file}`);
+    assert.deepEqual(
+      culpables,
+      [],
+      `${culpables.join(", ")} lee la fecha de construcción. El mismo commit tiene que generar siempre el ` +
+        "mismo HTML: prod-check lo compara byte a byte con producción, y un valor sacado de la fecha (el año " +
+        "del pie, p. ej.) lo rompería al cambiar de día o de año. Si hace falta una fecha, escríbela en el " +
+        "código (el año de publicación, no el de construcción).",
+    );
+  });
+
+  test("la regla detecta las dos formas de leer la fecha, con espacios y sin ellos, y no confunde otras cosas", () => {
+    for (const texto of ["new Date()", "new Date().getFullYear()", "new  Date (0)", "Date.now()", "Date . now ()", "x = Date.now( )"]) {
+      assert.match(texto, LEE_LA_FECHA, texto);
+    }
+    for (const texto of ["const year = 2026;", "UpdateDate(", "isDate(x)", "new Datepicker()", "candidate.now()", "// la fecha"]) {
+      assert.doesNotMatch(texto, LEE_LA_FECHA, texto);
+    }
+  });
+});
+
 describe("ficheros del repositorio: avisos legales y seguridad", () => {
   test("SECURITY.md ofrece también el reporte privado de GitHub (no depende solo del correo)", () => {
     assert.match(read("SECURITY.md"), /Report a vulnerability/);

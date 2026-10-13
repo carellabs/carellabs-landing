@@ -3,6 +3,9 @@ import "@fontsource-variable/jetbrains-mono";
 import "../styles/global.css";
 // Precarga solo la cara latina: cubre ES y EN, y el titular (LCP) la usa.
 import monoLatin from "@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2?url";
+import es from "../i18n/es.json";
+import en from "../i18n/en.json";
+import { personJsonLd } from "../lib/jsonld";
 
 interface Props {
   lang: "es" | "en";
@@ -12,6 +15,12 @@ interface Props {
   noindex?: boolean;
 }
 const { lang, title, description, noindex = false } = Astro.props;
+// Los textos que solo usa el `<head>` (nombre del sitio, texto alternativo de la imagen) salen del
+// idioma de la página, como el resto: ningún texto escrito a mano aquí.
+const t = lang === "es" ? es : en;
+// `og:locale` de cada idioma: el de la página y, como alternativo, el del otro.
+const ogLocale = { es: "es_ES", en: "en_GB" } as const;
+const otherLang = lang === "es" ? "en" : "es";
 const site = Astro.site ?? new URL("https://carellabs.com");
 const canonical = new URL(Astro.url.pathname, site);
 const esUrl = new URL("/", site);
@@ -40,6 +49,7 @@ const enUrl = new URL("/en/", site);
       )
     }
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="preload" href={monoLatin} as="font" type="font/woff2" crossorigin />
 
     {
@@ -53,9 +63,15 @@ const enUrl = new URL("/en/", site);
           <meta property="og:image" content={new URL(`/og-${lang}.png`, site)} />
           <meta property="og:image:width" content="1200" />
           <meta property="og:image:height" content="630" />
-          <meta property="og:image:alt" content={description} />
-          <meta property="og:locale" content={lang === "es" ? "es_ES" : "en_GB"} />
+          <meta property="og:image:alt" content={t.meta.ogImageAlt} />
+          <meta property="og:site_name" content={t.site.brand} />
+          <meta property="og:locale" content={ogLocale[lang]} />
+          <meta property="og:locale:alternate" content={ogLocale[otherLang]} />
           <meta name="twitter:card" content="summary_large_image" />
+          <meta name="twitter:image" content={new URL(`/og-${lang}.png`, site)} />
+          <meta name="twitter:image:alt" content={t.meta.ogImageAlt} />
+          {/* Un bloque de datos, no código: el navegador no lo ejecuta y la CSP no lo bloquea. */}
+          <script type="application/ld+json" is:inline set:html={personJsonLd(t, canonical)}></script>
         </>
       )
     }

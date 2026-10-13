@@ -26,6 +26,12 @@ function astroFiles(dir: string): string[] {
   });
 }
 
+/** Los .ts de una carpeta (src/lib): la lógica que monta datos con textos de i18n. */
+const tsFiles = (dir: string): string[] =>
+  readdirSync(dir, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name.endsWith(".ts"))
+    .map((entry) => join(dir, entry.name));
+
 /** La parte de marcado de un .astro: sin el frontmatter (`---`), ni <style> ni <script>. */
 function templateOf(source: string): string {
   let body = source.startsWith("---") ? source.slice(source.indexOf("\n---", 3) + 4) : source;
@@ -54,7 +60,28 @@ test("es.json and en.json have exactly the same keys", () => {
   expect(en).toEqual(es);
 });
 
-// Una clave cuenta como usada si alguna plantilla escribe `t.<ruta>` (p. ej. `t.lab.title`; `t`,
+// El rol y la ciudad están escritos una vez (`meta.jobTitle`, `meta.locality`, que usan los datos
+// estructurados) y repetidos a mano en otros textos: si cambian, esos textos no pueden quedarse con el
+// valor viejo.
+for (const lang of ["es", "en"] as const) {
+  test(`${lang}: hero.role is «jobTitle · locality» and the image alt text names both`, () => {
+    const t = messages(lang) as {
+      hero: { role: string };
+      meta: { jobTitle: string; locality: string; ogImageAlt: string };
+    };
+    // Control positivo: se han leído un rol y una ciudad de verdad.
+    expect(t.meta.jobTitle.length).toBeGreaterThan(3);
+    expect(t.meta.locality.length).toBeGreaterThan(3);
+
+    expect(t.hero.role, "hero.role debe ser `${meta.jobTitle} · ${meta.locality}`").toBe(
+      `${t.meta.jobTitle} · ${t.meta.locality}`,
+    );
+    expect(t.meta.ogImageAlt, "meta.ogImageAlt debe nombrar el rol (meta.jobTitle)").toContain(t.meta.jobTitle);
+    expect(t.meta.ogImageAlt, "meta.ogImageAlt debe nombrar la ciudad (meta.locality)").toContain(t.meta.locality);
+  });
+}
+
+// Una clave cuenta como usada si alguna plantilla (o módulo de src/lib) escribe `t.<ruta>` (p. ej. `t.lab.title`; `t`,
 // `es` o `en` son los objetos de textos), o usa un padre suyo como un todo (`t.lab.status[app.status]`,
 // `t.hero.note.map(...)`). La ruta tiene que empezar justo tras el objeto: `t.nav.lab` no usa `lab.*`.
 const ARRAY_METHODS = "map|filter|find|some|every|forEach|join|slice|length|at";
@@ -64,8 +91,8 @@ const usageOf = (path: string[]) =>
     `(?<![\\w.])(?:t|es|en)\\.${path.map(escapeRe).join("\\.")}(?![\\w-])(?!\\.(?!(?:${ARRAY_METHODS})\\b)[A-Za-z_])`,
   );
 
-test("every i18n key is used by some template", () => {
-  const source = astroFiles("src")
+test("every i18n key is used by some template or src/lib module", () => {
+  const source = [...astroFiles("src"), ...tsFiles(join("src", "lib"))]
     .map((f) => readFileSync(f, "utf8"))
     .join("\n");
   const keys = new Set(leafPaths(messages("es")).map((p) => p.replace(/\[\d+\]/g, "")));
@@ -75,7 +102,7 @@ test("every i18n key is used by some template", () => {
     const parts = key.split(".");
     return !parts.some((_, i) => usageOf(parts.slice(0, i + 1)).test(source));
   });
-  expect(unused, "claves de i18n que ninguna plantilla usa").toEqual([]);
+  expect(unused, "claves de i18n que ninguna plantilla ni módulo de src/lib usa").toEqual([]);
 });
 
 /** Contenido de las llaves de `attr={ ... }`, con las llaves anidadas bien emparejadas. */

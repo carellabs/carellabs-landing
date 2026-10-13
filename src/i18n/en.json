@@ -1,7 +1,8 @@
 {
   "meta": {
-    "title": "Fabrizio Carella · Carellabs",
-    "description": "Full Stack Developer in Madrid. I design and evolve systems that connect software, data and operations in real time."
+    "title": "Fabrizio Carella · Full Stack Developer · Carellabs",
+    "description": "Full Stack Developer in Madrid. I design and evolve systems that connect software, data and operations in real time.",
+    "ogImageAlt": "Dark Carellabs card showing its logo, the site headline, the name Fabrizio Carella, the role Full Stack Developer in Madrid and the address carellabs.com."
   },
   "site": {
     "brand": "Carellabs",

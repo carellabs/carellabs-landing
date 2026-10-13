@@ -107,6 +107,59 @@ test("robots.txt points to the sitemap index, which points to the sitemap", () =
   expect(index).toContain(`<loc>${SITE}/sitemap-0.xml</loc>`);
 });
 
+/** Los textos de un idioma, tal como están en src/i18n (la fuente de todo lo que se publica). */
+const messages = (lang: "es" | "en") => JSON.parse(readFileSync(`src/i18n/${lang}.json`, "utf8"));
+
+/** `og:locale` de cada idioma: el de la página y, como alternativo, el del otro. */
+const OG_LOCALE = { es: "es_ES", en: "en_GB" } as const;
+
+// Título y metadatos para redes: el rol en el título, el nombre del sitio, el idioma alternativo y
+// la imagen también para Twitter/X, con un texto alternativo que describe la imagen (no la página).
+for (const lang of ["es", "en"] as const) {
+  const path = lang === "es" ? "/" : "/en/";
+  const other = lang === "es" ? "en" : "es";
+
+  test(`${path}: the title carries the role and og:title repeats it`, async ({ page }) => {
+    await page.goto(path);
+    const title = "Fabrizio Carella · Full Stack Developer · Carellabs";
+    await expect(page).toHaveTitle(title);
+    await expect(page.locator('meta[property="og:title"]')).toHaveAttribute("content", title);
+  });
+
+  test(`${path}: og:site_name, the alternate locale and the Twitter image are published`, async ({ page }) => {
+    const t = messages(lang);
+    await page.goto(path);
+    const content = (selector: string) => page.locator(selector).evaluateAll((els) => els.map((e) => e.getAttribute("content")));
+
+    // Una sola etiqueta de cada, con el valor exacto.
+    expect(await content('meta[property="og:site_name"]')).toEqual([t.site.brand]);
+    expect(await content('meta[property="og:locale"]')).toEqual([OG_LOCALE[lang]]);
+    expect(await content('meta[property="og:locale:alternate"]'), "og:locale:alternate: el del otro idioma").toEqual([
+      OG_LOCALE[other],
+    ]);
+    // La imagen de Twitter/X es la misma URL absoluta que og:image.
+    expect(await content('meta[name="twitter:image"]')).toEqual([`${SITE}/og-${lang}.png`]);
+    expect(await content('meta[name="twitter:image"]')).toEqual(await content('meta[property="og:image"]'));
+    expect(await content('meta[name="twitter:card"]')).toEqual(["summary_large_image"]);
+  });
+
+  test(`${path}: the image alt text describes the card, not the page, and is the same for Open Graph and Twitter`, async ({
+    page,
+  }) => {
+    const t = messages(lang);
+    await page.goto(path);
+    const content = (selector: string) => page.locator(selector).evaluateAll((els) => els.map((e) => e.getAttribute("content")));
+
+    expect(await content('meta[property="og:image:alt"]')).toEqual([t.meta.ogImageAlt]);
+    expect(await content('meta[name="twitter:image:alt"]')).toEqual([t.meta.ogImageAlt]);
+    // No repite la descripción de la página y sí nombra lo que la imagen enseña (nombre y marca).
+    expect(t.meta.ogImageAlt).not.toBe(t.meta.description);
+    expect(t.meta.ogImageAlt).toContain(t.hero.name);
+    expect(t.meta.ogImageAlt).toContain(t.site.brand);
+    expect(t.meta.ogImageAlt.length).toBeGreaterThanOrEqual(20);
+  });
+}
+
 // Imagen de previsualización en redes: una por idioma, con el titular de cada uno
 // (las genera `npm run og` a partir de src/i18n/*.json).
 for (const lang of ["es", "en"] as const) {

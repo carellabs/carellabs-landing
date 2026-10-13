@@ -247,13 +247,19 @@ test("404 page texts: Spanish message, English line and English home link keep t
   await expect(english).toHaveAttribute("hreflang", "en");
 });
 
-test("404 page is not indexable: noindex, and no canonical, hreflang or og:* tags", async ({ page }) => {
+test("404 page is not indexable: noindex, and no canonical, hreflang, og:* or twitter:* tags", async ({ page }) => {
   // Control positivo: estos mismos selectores sí encuentran las etiquetas en una página real.
   await page.goto("/");
   await expect(page.locator('link[rel="canonical"]')).toHaveCount(1);
   await expect(page.locator('link[rel="alternate"][hreflang]')).toHaveCount(3);
   expect(await page.locator('meta[property^="og:"]').count()).toBeGreaterThan(3);
   await expect(page.locator('meta[name="twitter:card"]')).toHaveCount(1);
+  // Los metadatos para redes más recientes también están en la página real (y no en la 404, abajo).
+  await expect(page.locator('meta[name="twitter:image"]')).toHaveCount(1);
+  await expect(page.locator('meta[name="twitter:image:alt"]')).toHaveCount(1);
+  await expect(page.locator('meta[property="og:site_name"]')).toHaveCount(1);
+  await expect(page.locator('meta[property="og:locale:alternate"]')).toHaveCount(1);
+  await expect(page.locator('meta[property="og:image:alt"]')).toHaveCount(1);
   await expect(page.locator('meta[name="robots"]')).toHaveCount(0);
 
   const res = await page.goto("/no-existe");
@@ -263,7 +269,10 @@ test("404 page is not indexable: noindex, and no canonical, hreflang or og:* tag
   await expect(page.locator('link[rel="canonical"]')).toHaveCount(0);
   await expect(page.locator('link[rel="alternate"][hreflang]')).toHaveCount(0);
   await expect(page.locator('meta[property^="og:"]')).toHaveCount(0);
-  await expect(page.locator('meta[name="twitter:card"]')).toHaveCount(0);
+  await expect(page.locator('meta[name^="twitter:"]')).toHaveCount(0);
+  await expect(page.locator('meta[property="og:site_name"]')).toHaveCount(0);
+  await expect(page.locator('meta[property="og:locale:alternate"]')).toHaveCount(0);
+  await expect(page.locator('meta[property="og:image:alt"]')).toHaveCount(0);
 });
 
 // La CSP no permite estilos en línea (`style-src 'self'`): ninguna página puede depender de ellos.

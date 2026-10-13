@@ -13,6 +13,7 @@
     "og": "node scripts/og/render.mjs",
     "icons": "node scripts/icons/render.mjs",
     "check": "astro check",
+    "check:prod": "node .github/scripts/prod-check.mjs",
     "test": "playwright test",
     "test:scripts": "node --test \".github/scripts/*.test.mjs\"",
     "test:ui": "playwright test --ui",

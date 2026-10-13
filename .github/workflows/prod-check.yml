@@ -1,0 +1,62 @@
+name: Producción
+
+# Comprueba que lo que sirve https://carellabs.com es lo que debe: estados, cabeceras de
+# seguridad, HTML idéntico al build del mismo commit, robots.txt y security.txt idénticos a los
+# de public/, la caducidad de security.txt y la redirección de www. La lógica y sus tests están
+# en .github/scripts/prod-check.mjs; a mano: `npm run build` y `npm run check:prod`.
+#
+# Cuándo corre:
+# - Tras cada push a main: espera hasta 10 minutos a que Cloudflare Workers Builds publique ese
+#   commit (--wait 600). Si no llega, falla: la build pudo no crearse nunca (pasó con el PR #14).
+# - A diario: detecta cambios en la zona de Cloudflare (p. ej. una función que reescribe el
+#   robots.txt o inyecta un script) y que security.txt se acerque a su caducidad.
+# - A mano: `gh workflow run prod-check.yml` (compara producción con el build de main).
+#
+# El cron y el disparo manual no esperan ningún despliegue: si algo falla, el script repite las
+# comprobaciones una vez, a los 60 s, y solo falla si persiste (un fallo pasajero de red no da alarma).
+#
+# NO es un check obligatorio: el ruleset de `main` exige solo test, lighthouse y pr-policy, y el
+# job se llama `produccion` a propósito. Es de solo lectura (no escribe en el repositorio ni abre
+# issues): si falla, GitHub avisa por correo.
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "23 7 * * *" # cada día, 07:23 UTC (fuera de la hora en punto y distinto de audit.yml y codeql.yml)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Aquí solo importa el último despliegue: una ejecución nueva cancela la anterior. Así, dos pushes
+# seguidos no dan un falso fallo del primero, que estaría esperando un despliegue ya superado por el
+# segundo. (ci.yml hace lo contrario, un grupo por commit, porque allí cada commit necesita su CI.)
+# El evento va en el grupo: el cron o un disparo manual no cancelan un push que espera el despliegue
+# (quien lo sustituiría no espera y podría dar un falso fallo).
+concurrency:
+  group: "${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  produccion:
+    name: produccion
+    runs-on: ubuntu-latest
+    # 10 minutos de espera como máximo (solo en un push) más instalar y construir.
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      # El build local del mismo commit, con el que se compara lo que sirve producción.
+      - run: npm run build
+      - name: Comprobar producción (esperando a que llegue el despliegue)
+        if: github.event_name == 'push'
+        run: node .github/scripts/prod-check.mjs --wait 600
+      - name: Comprobar producción
+        if: github.event_name != 'push'
+        run: node .github/scripts/prod-check.mjs

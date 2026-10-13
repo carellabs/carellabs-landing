@@ -7,7 +7,10 @@ interface Props {
 }
 const { lang, t } = Astro.props;
 const other = lang === "es" ? "en" : "es";
-const year = new Date().getFullYear();
+// Año de la primera publicación, fijo a propósito: el mismo commit tiene que generar siempre el
+// mismo HTML (build reproducible; prod-check lo compara byte a byte con producción). Un aviso de
+// copyright lleva el año de publicación, no el de construcción.
+const year = 2026;
 ---
 
 <footer class="foot">

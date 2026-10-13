@@ -4,7 +4,7 @@ Landing / portfolio de carellabs.com. Astro, estático, bilingüe (ES en `/`, EN
 
 ## Arrancar en local
 
-Requiere Node `>=22.19.0`. La versión exacta del proyecto está en `.nvmrc` (la usan también el CI y Cloudflare Workers).
+Requiere Node `>=24.21.0`. La versión exacta del proyecto está en `.nvmrc` (la usan también el CI y Cloudflare Workers).
 
 ```bash
 npm install

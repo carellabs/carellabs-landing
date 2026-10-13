@@ -181,6 +181,34 @@ describe("parseHeadersFile", () => {
   });
 });
 
+describe("headerProblems", () => {
+  const wanted = [
+    { name: "X-Frame-Options", value: "DENY" },
+    { name: "Content-Security-Policy", value: "default-src 'none'" },
+  ];
+
+  test("devuelve [] cuando todas llegan con su valor exacto (el nombre no distingue mayúsculas)", () => {
+    const headers = new Headers({ "x-frame-options": "DENY", "CONTENT-SECURITY-POLICY": "default-src 'none'" });
+    assert.deepEqual(prod.headerProblems(headers, wanted), []);
+  });
+
+  test("lista todo lo que falta o difiere, en el orden del fichero", () => {
+    assert.deepEqual(prod.headerProblems(new Headers(), wanted), [
+      "falta X-Frame-Options",
+      "falta Content-Security-Policy",
+    ]);
+    assert.deepEqual(prod.headerProblems(new Headers({ "x-frame-options": "deny", "content-security-policy": "x" }), wanted), [
+      "X-Frame-Options llega como «deny» y debería ser «DENY»",
+      "Content-Security-Policy llega como «x» y debería ser «default-src 'none'»",
+    ]);
+  });
+
+  test("lo que llega de la red va recortado", () => {
+    const [problema] = prod.headerProblems(new Headers({ "x-frame-options": "z".repeat(1000) }), wanted.slice(0, 1));
+    assert.ok(problema.length < 700, `${problema.length} caracteres`);
+  });
+});
+
 describe("parseExpires", () => {
   test("devuelve la fecha del campo Expires", () => {
     const fecha = prod.parseExpires("Contact: mailto:a@b.c\nExpires: 2027-09-30T00:00:00.000Z\nCanonical: x\n");
@@ -758,7 +786,7 @@ describe("waitForDeploy: modo espera (--wait)", () => {
   const VIEJO = { body: "<html>la versión anterior</html>" };
   /** Lo que sirve producción cuando el despliegue ya ha llegado, por ruta. */
   const BUENO = {
-    "/": { body: HOME },
+    "/": { body: HOME, headers: SECURITY_HEADERS },
     "/en/": { body: EN },
     "/no-existe": { status: 404, body: NOT_FOUND },
     "/robots.txt": { body: ROBOTS },
@@ -781,7 +809,7 @@ describe("waitForDeploy: modo espera (--wait)", () => {
       const r = lista[Math.min(vueltas[ruta] - 1, lista.length - 1)];
       if (r === undefined) throw new TypeError("fetch failed");
       if (r instanceof Error) throw r;
-      return new Response(Buffer.from(r.body ?? ""), { status: r.status ?? 200 });
+      return new Response(Buffer.from(r.body ?? ""), { status: r.status ?? 200, headers: r.headers ?? {} });
     };
     fn.calls = calls;
     fn.de = (ruta) => calls.filter((c) => c.ruta === ruta).length;
@@ -854,6 +882,65 @@ describe("waitForDeploy: modo espera (--wait)", () => {
     assert.match(r.detail, /public\/robots\.txt tiene \d+/);
     assert.equal((r.detail.match(/difieren desde el byte/g) ?? []).length, 3);
     assert.ok(!r.detail.includes("/en/ ("), "/en/ coincide y no debería aparecer");
+  });
+
+  // Un push que solo cambia public/_headers no cambia ningún contenido: sin mirar las cabeceras, la espera
+  // pasaría al instante y las comprobaciones compararían las cabeceras nuevas con las del despliegue viejo.
+  test("un push que solo cambia _headers hace esperar: el contenido ya coincide, las cabeceras de / aún no", async () => {
+    const reloj = relojFalso();
+    const viejas = { ...BUENO["/"], headers: { ...SECURITY_HEADERS, "content-security-policy": "default-src 'none'" } };
+    const fetchFalso = porRuta({ "/": [viejas, viejas, BUENO["/"]] });
+    const r = await esperar(fetchFalso, reloj);
+    assert.equal(r.ok, true, r.detail);
+    assert.deepEqual(reloj.sleeps, [20_000, 20_000]);
+    assert.match(r.detail, /tras 40 s/);
+  });
+
+  test("si las cabeceras de / nunca llegan, falla nombrándolas, con lo que falta y lo que difiere, y solo a ellas", async () => {
+    const { "x-frame-options": _, ...sinFrame } = SECURITY_HEADERS;
+    const viejas = { ...BUENO["/"], headers: { ...sinFrame, "content-security-policy": "default-src 'none'" } };
+    const r = await esperar(porRuta({ "/": [viejas] }), relojFalso());
+    assert.equal(r.ok, false);
+    assert.match(r.detail, /el despliegue no ha llegado en 60 s/);
+    assert.match(r.detail, /siguen sin coincidir con el build o con public\/: cabeceras de \/ \(/);
+    assert.ok(r.detail.includes("falta X-Frame-Options"), r.detail);
+    assert.ok(r.detail.includes("Content-Security-Policy llega como «default-src 'none'»"), r.detail);
+    // El contenido sí coincide: no se nombra ninguna de las cinco rutas de contenido.
+    for (const noDebe of ["/en/ (", "/no-existe (", "/robots.txt (", "/.well-known/security.txt ("]) {
+      assert.ok(!r.detail.includes(noDebe), `${noDebe} coincide y no debería aparecer: ${r.detail}`);
+    }
+    assert.ok(!r.detail.includes("HTML"), r.detail);
+  });
+
+  test("si el contenido y las cabeceras difieren a la vez, nombra las dos cosas", async () => {
+    // / sirve todavía el HTML viejo y sin ninguna de las cabeceras esperadas.
+    const r = await esperar(porRuta({ "/": [{ body: VIEJO.body }] }), relojFalso(), { waitSeconds: 0 });
+    assert.equal(r.ok, false);
+    assert.ok(r.detail.includes("/ (sirve "), r.detail);
+    assert.ok(r.detail.includes("cabeceras de / (falta "), r.detail);
+  });
+
+  test("una cabecera nueva en _headers también hace esperar (se esperan las del fichero, no una lista fija)", async () => {
+    const conNueva = {
+      ...EXPECTED,
+      headers: [...EXPECTED.headers, { name: "Cross-Origin-Opener-Policy", value: "same-origin" }],
+    };
+    const llega = { ...BUENO["/"], headers: { ...SECURITY_HEADERS, "cross-origin-opener-policy": "same-origin" } };
+    const reloj = relojFalso();
+    const r = await esperar(porRuta({ "/": [BUENO["/"], llega] }), reloj, { expected: conNueva });
+    assert.equal(r.ok, true, r.detail);
+    assert.deepEqual(reloj.sleeps, [20_000]);
+
+    const nunca = await esperar(porRuta(), relojFalso(), { expected: conNueva });
+    assert.equal(nunca.ok, false);
+    assert.ok(nunca.detail.includes("falta Cross-Origin-Opener-Policy"), nunca.detail);
+  });
+
+  test("con / caído no se menciona dos veces: solo como «sin respuesta» del contenido", async () => {
+    const r = await esperar(porRuta({ "/": [new TypeError("fetch failed")] }), relojFalso(), { waitSeconds: 0 });
+    assert.equal(r.ok, false);
+    assert.equal((r.detail.match(/sin respuesta/g) ?? []).length, 1, r.detail);
+    assert.ok(!r.detail.includes("cabeceras de /"), r.detail);
   });
 
   test("el estado también cuenta: la 404 tiene que responder 404 y el resto 200", async () => {

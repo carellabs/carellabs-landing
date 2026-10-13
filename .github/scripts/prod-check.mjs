@@ -181,6 +181,24 @@ function checkRedirectToEnglish(reply, origin) {
 }
 
 /**
+ * Qué cabeceras de las esperadas no llegan, o llegan con otro valor (el valor tiene que ser exacto).
+ * Lo usan las comprobaciones y el modo espera.
+ *
+ * @param {{ get(name: string): string | null }} headers cabeceras de la respuesta
+ * @param {HeaderLine[]} wanted las del bloque `/*` de `public/_headers`
+ * @returns {string[]} un problema por cabecera, en el orden del fichero; vacío si todo llega
+ */
+export function headerProblems(headers, wanted) {
+  const problems = [];
+  for (const { name, value } of wanted) {
+    const got = headers.get(name);
+    if (got === null) problems.push(`falta ${name}`);
+    else if (got !== value) problems.push(`${name} llega como «${safe(got)}» y debería ser «${safe(value)}»`);
+  }
+  return problems;
+}
+
+/**
  * Las cabeceras de `public/_headers` (bloque `/*`) tienen que llegar con su valor exacto.
  * @param {string} path
  * @param {Reply} reply
@@ -190,12 +208,7 @@ function checkRedirectToEnglish(reply, origin) {
 function checkHeaders(path, reply, wanted) {
   const name = `cabeceras de ${path}`;
   if (!reply.ok) return fail(name, unreachable(reply));
-  const problems = [];
-  for (const { name: header, value } of wanted) {
-    const got = reply.headers.get(header);
-    if (got === null) problems.push(`falta ${header}`);
-    else if (got !== value) problems.push(`${header} llega como «${safe(got)}» y debería ser «${safe(value)}»`);
-  }
+  const problems = headerProblems(reply.headers, wanted);
   return problems.length === 0
     ? pass(name, `${wanted.length} cabeceras con su valor exacto`)
     : fail(name, problems.join("; "));
@@ -432,8 +445,10 @@ function whyNotDeployed(reply, item, expected) {
 /**
  * Modo espera (`--wait`): tras un push a `main`, Cloudflare tarda un rato en publicar. Compara todo
  * el contenido que cambia con un despliegue (el HTML de `/`, `/en/` y la 404, `robots.txt` y
- * `security.txt`) con el build y `public/`, y repite cada `intervalMs` hasta que TODO coincida o se
- * agote `waitSeconds`; si se agota, dice qué sigue sin coincidir.
+ * `security.txt`) y las cabeceras de `/` (las del bloque `/*` de `public/_headers`) con el build y
+ * `public/`, y repite cada `intervalMs` hasta que TODO coincida o se agote `waitSeconds`; si se agota,
+ * dice qué sigue sin coincidir. Las cabeceras cuentan porque un push que solo cambia `_headers` no
+ * cambia ningún contenido.
  *
  * @param {object} options
  * @param {string} options.site
@@ -472,6 +487,12 @@ export async function waitForDeploy({
       const reason = whyNotDeployed(replies[i], item, expected);
       return reason === null ? [] : [`${item.path} (${reason})`];
     });
+    // (si / no responde, ya consta arriba como «sin respuesta»)
+    const home = replies[CONTENT.findIndex((item) => item.path === "/")];
+    if (home.ok) {
+      const problems = headerProblems(home.headers, expected.headers);
+      if (problems.length > 0) pending.push(`cabeceras de / (${problems.join("; ")})`);
+    }
     if (pending.length === 0) {
       return pass(name, `todo lo servido ya es el del build y el de public/ (tras ${Math.round((now() - start) / 1000)} s)`);
     }
@@ -544,7 +565,7 @@ Compara lo que sirve producción con el build local (dist/) y con public/. Ejecu
                       producción: también pide https://www.<dominio>/.
   --dist <carpeta>    build con el que se compara (por defecto, dist/ del repositorio).
   --wait <segundos>   tras un push a main: espera, como máximo ese tiempo, a que todo lo servido (HTML de /,
-                      /en/ y la 404, robots.txt y security.txt) sea el del build y el de public/.
+                      /en/ y la 404, robots.txt, security.txt y las cabeceras de /) sea el del build y el de public/.
   -h, --help          muestra esta ayuda.
 
 Código de salida: 0 todo correcto; 1 alguna comprobación falla; 2 argumentos o build local no válidos.`;

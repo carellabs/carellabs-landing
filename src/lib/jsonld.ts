@@ -21,12 +21,14 @@ export interface PersonTexts {
  * pone dentro del `<script type="application/ld+json">`: ningún texto puede cerrar la etiqueta.
  *
  * @param t Los textos del idioma de la página.
- * @param url La URL canónica de la página.
+ * @param url La URL canónica de la página; de su origen sale el `@id` común a todos los idiomas.
  */
 export function personJsonLd(t: PersonTexts, url: URL): string {
   return serializeJsonLd({
     "@context": "https://schema.org",
     "@type": "Person",
+    // El mismo en todas las páginas del sitio: así se entiende que describen a la misma persona.
+    "@id": new URL("/#person", url).href,
     name: t.hero.name,
     jobTitle: t.meta.jobTitle,
     url: url.href,

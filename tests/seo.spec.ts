@@ -180,6 +180,7 @@ for (const lang of ["es", "en"] as const) {
     expect(data).toEqual({
       "@context": "https://schema.org",
       "@type": "Person",
+      "@id": `${SITE}/#person`,
       name: t.hero.name,
       jobTitle: t.meta.jobTitle,
       url: lang === "es" ? `${SITE}/` : `${SITE}/en/`,
@@ -189,6 +190,7 @@ for (const lang of ["es", "en"] as const) {
     });
 
     // Anclas que no dependen de los JSON de i18n: lo que de verdad se quiere publicar.
+    expect(data["@id"]).toBe("https://carellabs.com/#person");
     expect(data.name).toBe("Fabrizio Carella");
     expect(data.jobTitle).toBe("Full Stack Developer");
     expect(data.sameAs).toEqual(["https://www.linkedin.com/in/fabriziocarella", "https://github.com/carellabs"]);
@@ -244,6 +246,18 @@ test("personJsonLd escapes hostile texts in every field: no `<` in the output an
   // Control positivo: es un Person completo, no un objeto vacío, y la URL es la de la página que se le pasa.
   expect(data["@type"]).toBe("Person");
   expect(data.url).toBe("https://example.test/en/");
+});
+
+// Las dos páginas describen a la misma persona: comparten `@id` (el origen del sitio + /#person), que no
+// es la URL de ninguna de ellas, para que un buscador las una en una sola entidad.
+test("personJsonLd gives the same @id, built from the site origin, to the page of each language", () => {
+  const es = JSON.parse(personJsonLd(messages("es"), new URL("https://example.test/")));
+  const en = JSON.parse(personJsonLd(messages("en"), new URL("https://example.test/en/")));
+  expect(es["@id"]).toBe("https://example.test/#person");
+  expect(en["@id"]).toBe(es["@id"]);
+  // Control positivo: sí cambia lo que debe cambiar (la URL de cada página) y @id no es ninguna de ellas.
+  expect([es.url, en.url]).toEqual(["https://example.test/", "https://example.test/en/"]);
+  expect([es.url, en.url]).not.toContain(es["@id"]);
 });
 
 for (const lang of ["es", "en"] as const) {

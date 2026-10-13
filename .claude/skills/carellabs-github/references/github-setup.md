@@ -298,7 +298,7 @@ El script lee la configuración y la reenvía completa con solo `enable_js: fals
 
 ## 7. Comprobaciones tras cada fase
 
-**Automatizadas.** Con el dominio ya publicado (fase 2), el workflow `Producción` (`.github/workflows/prod-check.yml`, job `produccion`; la lógica y sus tests están en `.github/scripts/prod-check.mjs`) hace solo casi todo lo que sigue: cada día (07:23 UTC) y tras cada push a `main`, donde espera hasta 10 minutos a que Cloudflare publique ese commit. Comprueba:
+**Automatizadas.** Con el dominio ya publicado (fase 2), el workflow `Producción` (`.github/workflows/prod-check.yml`, job `produccion`; la lógica y sus tests están en `.github/scripts/prod-check.mjs`) hace solo casi todo lo que sigue: cada día (07:23 UTC) y tras cada push a `main`, donde espera hasta 10 minutos a que Cloudflare publique ese commit (repite cada 20 s la comparación del HTML de `/`, `/en/` y la 404, `robots.txt` y `security.txt` hasta que todos coincidan con el build y `public/`, y si se agota dice cuáles no). Comprueba:
 
 - los estados de `/` y `/en/` (200), `/no-existe` (404) y `/en` (307 a `/en/`);
 - las cabeceras de `public/_headers` con su valor exacto en `/`, `/en/` y la 404, y la caché de un CSS de `/_astro`;

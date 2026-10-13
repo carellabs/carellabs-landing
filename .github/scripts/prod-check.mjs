@@ -340,6 +340,28 @@ function checkWwwRedirect(reply, origin) {
  */
 
 /**
+ * El contenido que cambia con cada despliegue y se compara byte a byte con el build o con
+ * `public/`. Lo usan a la vez las comprobaciones y el modo espera (`--wait`), para que esperen
+ * exactamente a lo que después comparan.
+ * @type {{ path: string, name: string, status: number, reference: string, hint: string,
+ *   built: (expected: Expected) => Buffer }[]}
+ */
+const CONTENT = [
+  { path: "/", name: "HTML de / idéntico al build", status: 200, reference: "el build", hint: HINT_HTML, built: (e) => e.html["/"] },
+  { path: "/en/", name: "HTML de /en/ idéntico al build", status: 200, reference: "el build", hint: HINT_HTML, built: (e) => e.html["/en/"] },
+  { path: "/no-existe", name: "HTML de /no-existe idéntico al build", status: 404, reference: "el build", hint: HINT_HTML, built: (e) => e.html["/no-existe"] },
+  { path: "/robots.txt", name: "robots.txt idéntico al de public/", status: 200, reference: "public/robots.txt", hint: HINT_ROBOTS, built: (e) => e.robots },
+  {
+    path: "/.well-known/security.txt",
+    name: "security.txt idéntico al de public/.well-known/",
+    status: 200,
+    reference: "public/.well-known/security.txt",
+    hint: HINT_SECURITY_TXT,
+    built: (e) => e.securityTxt,
+  },
+];
+
+/**
  * Pide las páginas de `site` y las compara con lo esperado. Una línea por comprobación.
  *
  * @param {object} options
@@ -357,10 +379,17 @@ export async function runChecks({ site, fetch: fetchFn = globalThis.fetch, expec
   const wwwUrl = new URL(WWW_PROBE, origin);
   wwwUrl.hostname = `www.${wwwUrl.hostname}`;
 
-  const [home, english, notFound, englishNoSlash, robots, securityTxt, www] = await Promise.all([
-    ...["/", "/en/", "/no-existe", "/en", "/robots.txt", "/.well-known/security.txt"].map(get),
+  const [englishNoSlash, www, ...contentReplies] = await Promise.all([
+    get("/en"),
     request(fetchFn, wwwUrl.href, timeoutMs),
+    ...CONTENT.map((item) => get(item.path)),
   ]);
+  /** @type {Record<string, Reply>} */
+  const served = Object.fromEntries(CONTENT.map((item, i) => [item.path, contentReplies[i]]));
+  const home = served["/"];
+  const english = served["/en/"];
+  const notFound = served["/no-existe"];
+  const securityTxt = served["/.well-known/security.txt"];
 
   return [
     checkStatus("/", home, 200),
@@ -371,16 +400,8 @@ export async function runChecks({ site, fetch: fetchFn = globalThis.fetch, expec
     checkHeaders("/en/", english, expected.headers),
     checkHeaders("/no-existe", notFound, expected.headers),
     await checkAssetCache(home, get),
-    checkIdentical("HTML de / idéntico al build", home, expected.html["/"], "el build", HINT_HTML),
-    checkIdentical("HTML de /en/ idéntico al build", english, expected.html["/en/"], "el build", HINT_HTML),
-    checkIdentical("HTML de /no-existe idéntico al build", notFound, expected.html["/no-existe"], "el build", HINT_HTML),
-    checkIdentical("robots.txt idéntico al de public/", robots, expected.robots, "public/robots.txt", HINT_ROBOTS),
-    checkIdentical(
-      "security.txt idéntico al de public/.well-known/",
-      securityTxt,
-      expected.securityTxt,
-      "public/.well-known/security.txt",
-      HINT_SECURITY_TXT,
+    ...CONTENT.map((item) =>
+      checkIdentical(item.name, served[item.path], item.built(expected), item.reference, item.hint),
     ),
     checkPlainText("security.txt como text/plain", securityTxt),
     checkSecurityTxtExpiry(securityTxt, now()),
@@ -395,21 +416,25 @@ export const WAIT_INTERVAL_MS = 20_000;
 const defaultSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * Por qué una respuesta de `/` todavía no es la del build, o `null` si ya lo es.
+ * Por qué una respuesta todavía no es la del despliegue esperado, o `null` si ya lo es.
  * @param {Reply} reply
- * @param {Buffer} built
+ * @param {(typeof CONTENT)[number]} item
+ * @param {Expected} expected
  * @returns {string | null}
  */
-function whyNotDeployed(reply, built) {
+function whyNotDeployed(reply, item, expected) {
   if (!reply.ok) return unreachable(reply);
-  if (reply.status !== 200) return `responde ${reply.status}, se esperaba 200`;
-  return reply.body.equals(built) ? null : describeDifference(reply.body, built, "el build");
+  if (reply.status !== item.status) return `responde ${reply.status}, se esperaba ${item.status}`;
+  const built = item.built(expected);
+  return reply.body.equals(built) ? null : describeDifference(reply.body, built, item.reference);
 }
 
 /**
- * Modo espera (`--wait`): tras un push a `main`, Cloudflare tarda un rato en publicar. Compara
- * el HTML de `/` con el del build y repite cada `intervalMs` hasta que coincida o se agote
- * `waitSeconds`. Cada petición lleva una consulta única para que ninguna caché la responda.
+ * Modo espera (`--wait`): tras un push a `main`, Cloudflare tarda un rato en publicar. Compara todo
+ * el contenido que cambia con un despliegue (el HTML de `/`, `/en/` y la 404, `robots.txt` y
+ * `security.txt`) con el build y `public/`, y repite cada `intervalMs` hasta que TODO coincida o se
+ * agote `waitSeconds`; si se agota, dice qué sigue sin coincidir. Cada petición lleva una consulta
+ * única para que ninguna caché la responda.
  *
  * @param {object} options
  * @param {string} options.site
@@ -441,17 +466,26 @@ export async function waitForDeploy({
   const deadline = start + waitSeconds * 1000;
 
   for (let attempt = 1; ; attempt++) {
-    const url = new URL("/", origin);
-    // La hora de inicio distingue unas ejecuciones de otras; el número de intento, los intentos de una.
-    url.searchParams.set("cb", `${start}-${attempt}`);
-    const reason = whyNotDeployed(await request(fetchFn, url.href, timeoutMs), expected.html["/"]);
-    if (reason === null) {
-      return pass(name, `el HTML de / ya es el del build (tras ${Math.round((now() - start) / 1000)} s)`);
+    const replies = await Promise.all(
+      CONTENT.map((item) => {
+        const url = new URL(item.path, origin);
+        // La hora de inicio distingue unas ejecuciones de otras; el número de intento, los intentos de una.
+        url.searchParams.set("cb", `${start}-${attempt}`);
+        return request(fetchFn, url.href, timeoutMs);
+      }),
+    );
+    const pending = CONTENT.flatMap((item, i) => {
+      const reason = whyNotDeployed(replies[i], item, expected);
+      return reason === null ? [] : [`${item.path} (${reason})`];
+    });
+    if (pending.length === 0) {
+      return pass(name, `todo lo servido ya es el del build y el de public/ (tras ${Math.round((now() - start) / 1000)} s)`);
     }
     if (now() + intervalMs > deadline) {
       return fail(
         name,
-        `el despliegue no ha llegado en ${waitSeconds} s: el HTML de / sigue sin ser el del build (${reason}). ` +
+        `el despliegue no ha llegado en ${waitSeconds} s: siguen sin coincidir con el build o con public/: ` +
+          `${pending.join("; ")}. ` +
           "Mira el historial de builds de Workers Builds en el panel de Cloudflare (Deployments > View build history).",
       );
     }
@@ -515,7 +549,8 @@ Compara lo que sirve producción con el build local (dist/) y con public/. Ejecu
   --site <url>        origen que se comprueba (por defecto ${DEFAULT_SITE}). Pensado para el dominio de
                       producción: también pide https://www.<dominio>/.
   --dist <carpeta>    build con el que se compara (por defecto, dist/ del repositorio).
-  --wait <segundos>   tras un push a main: espera, como máximo ese tiempo, a que el HTML de / sea el del build.
+  --wait <segundos>   tras un push a main: espera, como máximo ese tiempo, a que todo lo servido (HTML de /,
+                      /en/ y la 404, robots.txt y security.txt) sea el del build y el de public/.
   -h, --help          muestra esta ayuda.
 
 Código de salida: 0 todo correcto; 1 alguna comprobación falla; 2 argumentos o build local no válidos.`;

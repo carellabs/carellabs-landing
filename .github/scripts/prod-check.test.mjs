@@ -506,6 +506,7 @@ describe("runChecks: contenido idéntico al build y a public/", () => {
     // (el «<» de «<body>» y de «<script>» coincide: la primera diferencia es el byte siguiente)
     assert.ok(r.detail.includes(`desde el byte ${HOME.indexOf("<body>") + 1}:`), r.detail);
     assert.match(r.detail, /<script>x\(\)<\/script>/);
+    assert.match(r.detail, /Cloudflare inyecta o transforma algo, o el despliegue de este commit no ha llegado$/);
     // Control positivo: las otras dos páginas no se ven afectadas.
     assert.equal(find(results, NOMBRES.english).ok, true);
     assert.equal(find(results, NOMBRES.notFound).ok, true);
@@ -753,123 +754,188 @@ describe("runChecks: www redirige al dominio raíz", () => {
 
 describe("waitForDeploy: modo espera (--wait)", () => {
   const NOMBRE = "despliegue en producción";
-  const viejo = { body: "<html>la versión anterior</html>" };
-  const nuevo = { body: HOME };
+  /** Lo que sirve producción mientras el despliegue no ha llegado. */
+  const VIEJO = { body: "<html>la versión anterior</html>" };
+  /** Lo que sirve producción cuando el despliegue ya ha llegado, por ruta. */
+  const BUENO = {
+    "/": { body: HOME },
+    "/en/": { body: EN },
+    "/no-existe": { status: 404, body: NOT_FOUND },
+    "/robots.txt": { body: ROBOTS },
+    "/.well-known/security.txt": { body: SECURITY_TXT },
+  };
+  const RUTAS = Object.keys(BUENO);
 
-  /** Un `fetch` que devuelve, en orden, las respuestas dadas (la última se repite). */
-  function secuencia(...respuestas) {
+  /**
+   * Un `fetch` que, para cada ruta, devuelve en orden las respuestas dadas (la última se repite).
+   * Las rutas que no se mencionan sirven siempre lo correcto.
+   */
+  function porRuta(spec = {}) {
     const calls = [];
+    const vueltas = {};
     const fn = async (url, init) => {
-      calls.push({ url: String(url), init });
-      const r = respuestas[Math.min(calls.length - 1, respuestas.length - 1)];
+      const ruta = new URL(url).pathname;
+      calls.push({ url: String(url), ruta, init });
+      const lista = spec[ruta] ?? [BUENO[ruta]];
+      vueltas[ruta] = (vueltas[ruta] ?? 0) + 1;
+      const r = lista[Math.min(vueltas[ruta] - 1, lista.length - 1)];
+      if (r === undefined) throw new TypeError("fetch failed");
       if (r instanceof Error) throw r;
       return new Response(Buffer.from(r.body ?? ""), { status: r.status ?? 200 });
     };
     fn.calls = calls;
+    fn.de = (ruta) => calls.filter((c) => c.ruta === ruta).length;
     return fn;
   }
 
   const esperar = (fetchFalso, reloj, extra = {}) =>
     prod.waitForDeploy({ site: SITE, fetch: fetchFalso, expected: EXPECTED, waitSeconds: 60, ...reloj, ...extra });
 
-  test("si producción ya sirve el HTML del build, pasa a la primera y no espera", async () => {
+  test("si producción ya sirve todo lo del build, pasa a la primera: una vuelta de peticiones y ninguna espera", async () => {
     const reloj = relojFalso();
-    const fetchFalso = secuencia(nuevo);
+    const fetchFalso = porRuta();
     const r = await esperar(fetchFalso, reloj);
     assert.equal(r.name, NOMBRE);
     assert.equal(r.ok, true, r.detail);
-    assert.equal(fetchFalso.calls.length, 1);
+    assert.deepEqual(fetchFalso.calls.map((c) => c.ruta).sort(), [...RUTAS].sort());
     assert.deepEqual(reloj.sleeps, []);
+    assert.match(r.detail, /tras 0 s/);
   });
 
-  test("repite cada 20 s hasta que el HTML coincide, y dice cuánto tardó", async () => {
+  test("/ ya coincide pero /en/ aún no: sigue esperando, y acaba en OK cuando /en/ llega", async () => {
     const reloj = relojFalso();
-    const fetchFalso = secuencia(viejo, viejo, viejo, nuevo);
+    const fetchFalso = porRuta({ "/en/": [VIEJO, VIEJO, BUENO["/en/"]] });
     const r = await esperar(fetchFalso, reloj);
     assert.equal(r.ok, true, r.detail);
-    assert.equal(fetchFalso.calls.length, 4);
-    assert.deepEqual(reloj.sleeps, [20_000, 20_000, 20_000]);
-    assert.match(r.detail, /tras 60 s/);
+    assert.equal(fetchFalso.de("/"), 3, "en cada vuelta se vuelve a mirar todo");
+    assert.equal(fetchFalso.de("/en/"), 3);
+    assert.deepEqual(reloj.sleeps, [20_000, 20_000]);
+    assert.match(r.detail, /tras 40 s/);
   });
 
-  test("el intervalo por defecto es de 20 s", () => {
-    assert.equal(prod.WAIT_INTERVAL_MS, 20_000);
+  test("cada contenido retrasa la espera por sí solo: /, /en/, la 404, robots.txt y security.txt", async () => {
+    for (const ruta of RUTAS) {
+      const reloj = relojFalso();
+      const fetchFalso = porRuta({ [ruta]: [VIEJO, BUENO[ruta]] });
+      const r = await esperar(fetchFalso, reloj);
+      assert.equal(r.ok, true, `${ruta}: ${r.detail}`);
+      assert.deepEqual(reloj.sleeps, [20_000], `${ruta} no hizo esperar`);
+      assert.equal(fetchFalso.calls.length, RUTAS.length * 2, ruta);
+    }
   });
 
-  test("si se agota el tiempo, falla diciendo que el despliegue no ha llegado y dónde mirar", async () => {
+  test("si /en/ nunca llega, falla diciendo que el despliegue no ha llegado y nombrando /en/ (y solo lo que no coincide)", async () => {
     const reloj = relojFalso();
-    const fetchFalso = secuencia(viejo);
-    const r = await esperar(fetchFalso, reloj, { waitSeconds: 60 });
+    const fetchFalso = porRuta({ "/en/": [VIEJO] });
+    const r = await esperar(fetchFalso, reloj);
     assert.equal(r.name, NOMBRE);
     assert.equal(r.ok, false);
     assert.match(r.detail, /el despliegue no ha llegado en 60 s/);
+    assert.match(r.detail, /siguen sin coincidir con el build o con public\/: \/en\/ \(sirve \d+ bytes y el build tiene \d+;/);
+    for (const noDebe of ["/no-existe", "robots.txt", "security.txt"]) {
+      assert.ok(!r.detail.includes(noDebe), `${noDebe} coincide y no debería aparecer: ${r.detail}`);
+    }
+    assert.ok(!r.detail.includes(": / ("), "/ coincide y no debería aparecer");
     assert.match(r.detail, /Workers Builds/);
     assert.match(r.detail, /historial de builds/);
-    // Intentos en 0, 20, 40 y 60 s: cuatro peticiones y tres esperas, ninguna después del último intento.
-    assert.equal(fetchFalso.calls.length, 4);
+    // Intentos en 0, 20, 40 y 60 s: cuatro vueltas de cinco peticiones y tres esperas, ninguna tras el último intento.
+    assert.equal(fetchFalso.calls.length, 4 * RUTAS.length);
     assert.deepEqual(reloj.sleeps, [20_000, 20_000, 20_000]);
   });
 
-  test("el mensaje de fallo incluye el último motivo (aquí, la diferencia de contenido)", async () => {
-    const r = await esperar(secuencia(viejo), relojFalso());
-    assert.match(r.detail, /difieren desde el byte/);
+  test("si no llegan varios contenidos, los nombra todos, cada uno con su diferencia y contra lo que se compara", async () => {
+    const viejo404 = { status: 404, body: VIEJO.body };
+    const r = await esperar(porRuta({ "/": [VIEJO], "/robots.txt": [VIEJO], "/no-existe": [viejo404] }), relojFalso());
+    assert.equal(r.ok, false);
+    assert.ok(r.detail.includes("/ (sirve "), r.detail);
+    assert.ok(r.detail.includes("/no-existe (sirve "), r.detail);
+    assert.ok(r.detail.includes("/robots.txt (sirve "), r.detail);
+    assert.match(r.detail, /el build tiene \d+/);
+    assert.match(r.detail, /public\/robots\.txt tiene \d+/);
+    assert.equal((r.detail.match(/difieren desde el byte/g) ?? []).length, 3);
+    assert.ok(!r.detail.includes("/en/ ("), "/en/ coincide y no debería aparecer");
+  });
+
+  test("el estado también cuenta: la 404 tiene que responder 404 y el resto 200", async () => {
+    const home404 = await esperar(porRuta({ "/": [{ status: 404, body: HOME }] }), relojFalso());
+    assert.equal(home404.ok, false);
+    assert.match(home404.detail, /\/ \(responde 404, se esperaba 200\)/);
+
+    const notFound200 = await esperar(porRuta({ "/no-existe": [{ status: 200, body: NOT_FOUND }] }), relojFalso());
+    assert.equal(notFound200.ok, false);
+    assert.match(notFound200.detail, /\/no-existe \(responde 200, se esperaba 404\)/);
   });
 
   test("sigue intentando ante errores de red o estados que no son 200, y acaba pasando", async () => {
     const reloj = relojFalso();
-    const fetchFalso = secuencia(new TypeError("fetch failed"), { status: 503, body: "caído" }, nuevo);
+    const fetchFalso = porRuta({
+      "/robots.txt": [new TypeError("fetch failed"), { status: 503, body: "caído" }, BUENO["/robots.txt"]],
+    });
     const r = await esperar(fetchFalso, reloj);
     assert.equal(r.ok, true, r.detail);
-    assert.equal(fetchFalso.calls.length, 3);
+    assert.deepEqual(reloj.sleeps, [20_000, 20_000]);
   });
 
-  test("un 404 con el HTML correcto no vale: hace falta un 200", async () => {
-    const r = await esperar(secuencia({ status: 404, body: HOME }), relojFalso());
+  test("con la red caída del todo, al agotarse nombra todo lo que falta con «sin respuesta»", async () => {
+    const caida = Object.fromEntries(RUTAS.map((ruta) => [ruta, [new TypeError("fetch failed")]]));
+    const r = await esperar(porRuta(caida), relojFalso());
     assert.equal(r.ok, false);
-    assert.match(r.detail, /responde 404/);
+    assert.equal((r.detail.match(/sin respuesta/g) ?? []).length, RUTAS.length, r.detail);
   });
 
-  test("al agotarse con la red caída, el motivo es «sin respuesta»", async () => {
-    const r = await esperar(secuencia(new TypeError("fetch failed")), relojFalso());
-    assert.equal(r.ok, false);
-    assert.match(r.detail, /sin respuesta/);
-  });
-
-  test("con --wait 0 hace un solo intento", async () => {
+  test("con --wait 0 hace una sola vuelta", async () => {
     const reloj = relojFalso();
-    const fetchFalso = secuencia(viejo);
+    const fetchFalso = porRuta({ "/en/": [VIEJO] });
     const r = await esperar(fetchFalso, reloj, { waitSeconds: 0 });
     assert.equal(r.ok, false);
-    assert.equal(fetchFalso.calls.length, 1);
+    assert.equal(fetchFalso.calls.length, RUTAS.length);
     assert.deepEqual(reloj.sleeps, []);
   });
 
-  test("el intervalo se puede cambiar", async () => {
+  test("el intervalo por defecto es de 20 s y se puede cambiar", async () => {
+    assert.equal(prod.WAIT_INTERVAL_MS, 20_000);
     const reloj = relojFalso();
-    await esperar(secuencia(viejo), reloj, { waitSeconds: 10, intervalMs: 5_000 });
+    await esperar(porRuta({ "/en/": [VIEJO] }), reloj, { waitSeconds: 10, intervalMs: 5_000 });
     assert.deepEqual(reloj.sleeps, [5_000, 5_000]);
   });
 
-  test("cada petición pide / con una consulta única (para saltarse cachés)", async () => {
-    const fetchFalso = secuencia(viejo);
+  test("un contenido del mismo tamaño pero distinto no cuenta como llegado", async () => {
+    const mismoTamano = { body: EN.replace("en</body>", "ez</body>") };
+    assert.equal(mismoTamano.body.length, EN.length);
+    const r = await esperar(porRuta({ "/en/": [mismoTamano] }), relojFalso());
+    assert.equal(r.ok, false);
+    assert.ok(r.detail.includes("/en/ (sirve "), r.detail);
+  });
+
+  test("las peticiones van al site que se comprueba, no a carellabs.com", async () => {
+    const fetchFalso = porRuta({ "/en/": [VIEJO] });
+    await esperar(fetchFalso, relojFalso(), { site: "https://ejemplo.test" });
+    assert.ok(fetchFalso.calls.length > 0);
+    for (const { url } of fetchFalso.calls) assert.equal(new URL(url).origin, "https://ejemplo.test", url);
+  });
+
+  test("solo se piden esas cinco URL, en el origen que se comprueba (ni /en, ni /_astro, ni www)", async () => {
+    const fetchFalso = porRuta({ "/en/": [VIEJO] });
     await esperar(fetchFalso, relojFalso());
-    const urls = fetchFalso.calls.map((c) => new URL(c.url));
-    assert.equal(urls.length, 4);
-    assert.equal(new Set(urls.map((u) => u.search)).size, urls.length, "consultas repetidas dentro de una ejecución");
-    for (const u of urls) {
-      assert.equal(u.origin, SITE);
-      assert.equal(u.pathname, "/");
-      assert.equal([...u.searchParams.keys()].length, 1);
-    }
+    assert.deepEqual([...new Set(fetchFalso.calls.map((c) => c.ruta))].sort(), [...RUTAS].sort());
+    for (const { url } of fetchFalso.calls) assert.equal(new URL(url).origin, SITE, url);
+  });
+
+  test("cada petición lleva una consulta única (para saltarse cachés)", async () => {
+    const fetchFalso = porRuta({ "/en/": [VIEJO] });
+    await esperar(fetchFalso, relojFalso());
+    const urls = fetchFalso.calls.map((c) => c.url);
+    assert.equal(new Set(urls).size, urls.length, "URLs repetidas dentro de una ejecución");
+    for (const url of urls) assert.equal([...new URL(url).searchParams.keys()].length, 1, url);
   });
 
   test("dos ejecuciones distintas no comparten consulta (una caché de la anterior no sirve)", async () => {
-    const a = secuencia(viejo);
-    const b = secuencia(viejo);
+    const a = porRuta({ "/en/": [VIEJO] });
+    const b = porRuta({ "/en/": [VIEJO] });
     await esperar(a, relojFalso(1_000_000));
     await esperar(b, relojFalso(2_000_000));
-    const consultas = new Set([...a.calls, ...b.calls].map((c) => new URL(c.url).search));
-    assert.equal(consultas.size, a.calls.length + b.calls.length);
+    const urls = [...a.calls, ...b.calls].map((c) => c.url);
+    assert.equal(new Set(urls).size, urls.length);
   });
 
   test("el límite de tiempo de cada petición rige también en el modo espera", async () => {
@@ -881,8 +947,9 @@ describe("waitForDeploy: modo espera (--wait)", () => {
   });
 
   test("las peticiones no siguen redirecciones y llevan límite de tiempo", async () => {
-    const fetchFalso = secuencia(viejo);
+    const fetchFalso = porRuta({ "/en/": [VIEJO] });
     await esperar(fetchFalso, relojFalso());
+    assert.ok(fetchFalso.calls.length > 0);
     for (const { init } of fetchFalso.calls) {
       assert.equal(init.redirect, "manual");
       assert.ok(init.signal instanceof AbortSignal);
@@ -1140,10 +1207,11 @@ describe("main: la CLI", () => {
   });
 
   test("--wait espera primero a que llegue el despliegue y después hace todas las comprobaciones", async () => {
+    // /en/ tarda dos vueltas en llegar; el resto ya está publicado desde el principio.
     const base = fakeFetch(goodTable());
     let pendientes = 2;
     const conRetraso = async (url, init) => {
-      if (new URL(url).searchParams.has("cb") && pendientes-- > 0) {
+      if (new URL(url).pathname === "/en/" && pendientes-- > 0) {
         return new Response(Buffer.from("<html>la versión anterior</html>"));
       }
       return base(url, init);
@@ -1151,7 +1219,10 @@ describe("main: la CLI", () => {
     const { deps, out, reloj } = entorno({ fetchFalso: conRetraso });
     const code = await prod.main(["--wait", "600"], deps);
     assert.equal(code, 0, out.join("\n"));
-    assert.equal(lineas(out, "OK     ")[0], "OK     despliegue en producción (el HTML de / ya es el del build (tras 40 s))");
+    assert.equal(
+      lineas(out, "OK     ")[0],
+      "OK     despliegue en producción (todo lo servido ya es el del build y el de public/ (tras 40 s))",
+    );
     assert.equal(lineas(out, "OK     ").length, 17);
     assert.deepEqual(reloj.sleeps, [20_000, 20_000]);
   });
@@ -1167,14 +1238,22 @@ describe("main: la CLI", () => {
     assert.match(fallos[0], /^FALLO {2}despliegue en producción: el despliegue no ha llegado en 60 s/);
     assert.match(out.join("\n"), /Se omiten las demás comprobaciones/);
     assert.ok(fetchFalso.calls.length > 0);
-    assert.ok(fetchFalso.calls.every((c) => new URL(c.url).searchParams.has("cb")), "se pidió algo más que la espera");
+    const delContenido = ["/", "/en/", "/no-existe", "/robots.txt", "/.well-known/security.txt"];
+    for (const { url } of fetchFalso.calls) {
+      const u = new URL(url);
+      assert.ok(
+        u.hostname === "carellabs.com" && delContenido.includes(u.pathname),
+        `se pidió algo más que la espera: ${url}`,
+      );
+    }
   });
 
-  test("sin --wait no se espera: ninguna petición lleva consulta única ni se duerme", async () => {
+  test("sin --wait no hay fase de espera: cada URL se pide una sola vez y no se duerme", async () => {
     const { deps, fetchFalso, reloj } = entorno();
     await prod.main([], deps);
-    assert.ok(fetchFalso.calls.length > 0);
-    assert.ok(fetchFalso.calls.every((c) => !new URL(c.url).searchParams.has("cb")));
+    const pedidas = fetchFalso.calls.map((c) => c.url);
+    assert.ok(pedidas.length > 0);
+    assert.equal(new Set(pedidas).size, pedidas.length, "alguna URL se pidió más de una vez");
     assert.deepEqual(reloj.sleeps, []);
   });
 });

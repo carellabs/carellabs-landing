@@ -1,18 +1,20 @@
 // Genera el icono para iOS (public/apple-touch-icon.png, 180x180) a partir de public/favicon.svg.
 // Uso: `npm run icons` (requiere el Chromium de Playwright; no usa la red).
 // iOS rellena la transparencia con negro u otro color, así que el icono lleva un fondo opaco: el
-// oscuro de la marca (el `--bg` de `:root` en src/styles/global.css) con el favicon centrado y con
-// margen. Deja en scripts/icons/rendered-from.json un hash del favicon y el fondo usados: un test
-// avisa si cambian y el icono no se ha regenerado.
+// oscuro de la marca (el `--bg` de `:root` en src/styles/global.css) con el favicon centrado. El favicon
+// se dibuja más grande que el lienzo (DRAW > SIZE, scripts/icons/params.mjs) y se recorta por los bordes:
+// lo que se recorta es su propio fondo oscuro, y la marca llena en torno al 60 % del lado. Deja en
+// scripts/icons/rendered-from.json un hash del favicon, el fondo y las dos medidas usados: un test avisa
+// si cambian y el icono no se ha regenerado.
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "@playwright/test";
+import { DRAW, SIZE } from "./params.mjs";
 
-const SIZE = 180;
-// Margen a cada lado: el favicon se dibuja en SIZE - 2 * MARGIN (el favicon ya trae aire propio).
-const MARGIN = 12;
+// Desplazamiento (negativo) con el que el favicon, de lado DRAW, queda centrado en el lienzo de lado SIZE.
+const OFFSET = (SIZE - DRAW) / 2;
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const read = (path) => readFileSync(join(root, path), "utf8");
@@ -28,7 +30,7 @@ const html = `<!doctype html>
 <meta charset="utf-8">
 <style>
   html, body { margin: 0; width: ${SIZE}px; height: ${SIZE}px; overflow: hidden; background: ${background}; }
-  .mark { position: absolute; inset: ${MARGIN}px; }
+  .mark { position: absolute; left: ${OFFSET}px; top: ${OFFSET}px; width: ${DRAW}px; height: ${DRAW}px; }
   .mark svg { display: block; width: 100%; height: 100%; }
 </style>
 <div class="mark">${favicon}</div>`;
@@ -54,6 +56,6 @@ try {
 
 writeFileSync(
   join(root, "scripts/icons/rendered-from.json"),
-  `${JSON.stringify({ favicon: fingerprint(favicon), background }, null, 2)}\n`,
+  `${JSON.stringify({ favicon: fingerprint(favicon), background, size: SIZE, draw: DRAW }, null, 2)}\n`,
 );
 console.log("scripts/icons/rendered-from.json");

@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { test, expect } from "@playwright/test";
+import { DRAW, SIZE } from "../scripts/icons/params.mjs";
 import { personJsonLd, serializeJsonLd } from "../src/lib/jsonld";
 import { HERO_FOCUS } from "./viewports";
 
@@ -420,11 +421,17 @@ test("the icon is the favicon centred on an opaque brand background", async ({ p
   expect(has(hex("#f2b13a")), "falta el ámbar de la marca").toBe(true);
   expect(has(hex("#ededea")), "falta el trazo claro de la marca").toBe(true);
 
-  // Centrada y con margen: la marca (todo lo que no es fondo) ocupa entre el 40 % y el 50 % del ancho
-  // y del alto, y sus márgenes izquierdo/derecho y superior/inferior no difieren en más de 8 px
-  // (el favicon, tal cual, deja la marca unas 0,75 de sus 32 unidades a la derecha del centro).
-  // Se cuenta como fondo lo que difiere de él en 4 niveles o menos por canal: el favicon lleva su propio
-  // cuadrado redondeado del mismo color y el suavizado de sus esquinas deja píxeles 1 nivel más oscuros.
+  // Sin bordes ni tonos raros junto a los lados: el favicon se dibuja más grande que el lienzo y se recorta,
+  // y lo que queda en el borde es solo su fondo, del color exacto de la marca, sin suavizados.
+  const ring: number[][] = [];
+  for (let i = 0; i < icon.width; i++) ring.push(pixel(i, 0), pixel(i, icon.height - 1), pixel(0, i), pixel(icon.width - 1, i));
+  expect(ring.filter((p) => p.join() !== [r, g, b, 255].join()).length, "píxeles del borde que no son el fondo").toBe(0);
+
+  // Centrada y grande: la marca (todo lo que no es fondo) ocupa entre el 55 % y el 65 % del ancho y del
+  // alto. Sus márgenes superior e inferior no difieren en más de 4 px, y los de izquierda y derecha en
+  // más de 12 (el favicon, tal cual, deja la marca unas 0,75 de sus 32 unidades a la derecha del centro,
+  // unos 5 px a esta escala). Se cuenta como fondo lo que difiere de él en 4 niveles o menos por canal:
+  // el cuadrado redondeado del propio favicon, del mismo color, deja suavizados 1 nivel más oscuros.
   let [x0, y0, x1, y1] = [icon.width, icon.height, -1, -1];
   for (let y = 0; y < icon.height; y++) {
     for (let x = 0; x < icon.width; x++) {
@@ -433,21 +440,25 @@ test("the icon is the favicon centred on an opaque brand background", async ({ p
     }
   }
   const [width, height] = [x1 - x0 + 1, y1 - y0 + 1];
-  expect(width / icon.width, "ancho de la marca").toBeGreaterThanOrEqual(0.4);
-  expect(width / icon.width, "ancho de la marca").toBeLessThanOrEqual(0.5);
-  expect(height / icon.height, "alto de la marca").toBeGreaterThanOrEqual(0.4);
-  expect(height / icon.height, "alto de la marca").toBeLessThanOrEqual(0.5);
-  expect(Math.abs(x0 - (icon.width - 1 - x1)), "margen izquierdo frente al derecho").toBeLessThanOrEqual(8);
-  expect(Math.abs(y0 - (icon.height - 1 - y1)), "margen superior frente al inferior").toBeLessThanOrEqual(8);
+  expect(width / icon.width, "ancho de la marca").toBeGreaterThanOrEqual(0.55);
+  expect(width / icon.width, "ancho de la marca").toBeLessThanOrEqual(0.65);
+  expect(height / icon.height, "alto de la marca").toBeGreaterThanOrEqual(0.55);
+  expect(height / icon.height, "alto de la marca").toBeLessThanOrEqual(0.65);
+  expect(Math.abs(x0 - (icon.width - 1 - x1)), "margen izquierdo frente al derecho").toBeLessThanOrEqual(12);
+  expect(Math.abs(y0 - (icon.height - 1 - y1)), "margen superior frente al inferior").toBeLessThanOrEqual(4);
 });
 
-test("the apple-touch-icon was rendered from the current favicon and brand background (run `npm run icons` after changing them)", () => {
+test("the apple-touch-icon was rendered from the current favicon, background and drawing size (run `npm run icons` after changing them)", () => {
   // Mismo hash que scripts/icons/render.mjs: sha-256 del SVG con los saltos de línea normalizados.
   const svg = readFileSync("public/favicon.svg", "utf8").replaceAll("\r\n", "\n");
   const rendered = JSON.parse(readFileSync("scripts/icons/rendered-from.json", "utf8"));
-  expect(rendered, "public/apple-touch-icon.png no refleja public/favicon.svg ni el fondo de src/styles/global.css").toEqual({
+  // El tamaño del lienzo y del dibujo salen de scripts/icons/params.mjs, que también lee el script: si se
+  // cambian y no se regenera el icono, el JSON guarda los valores viejos y esto falla.
+  expect(rendered, "public/apple-touch-icon.png no refleja public/favicon.svg, el fondo de src/styles/global.css ni scripts/icons/params.mjs").toEqual({
     favicon: createHash("sha256").update(svg).digest("hex"),
     background: brandBackground(),
+    size: SIZE,
+    draw: DRAW,
   });
 });
 

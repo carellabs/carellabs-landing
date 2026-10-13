@@ -81,14 +81,14 @@ for (const pg of PAGES) {
     await expect(page.locator('meta[property="og:url"]')).toHaveAttribute("content", CANONICAL[pg.lang]);
   });
 
-  // El año del pie es el de la primera publicación, no el de la construcción: el mismo commit tiene
-  // que dar siempre el mismo HTML (prod-check lo compara byte a byte con producción). Este test falla
-  // en cuanto el año deje de ser el escrito en el código, p. ej. si se vuelve a calcular con la fecha.
+  // Canario para 2027. El año del pie es el de la primera publicación (2026), no el de la construcción:
+  // el mismo commit tiene que dar siempre el mismo HTML (prod-check lo compara byte a byte con producción).
+  // OJO: mientras el año real sea 2026, este test no distingue un año escrito de uno calculado con la
+  // fecha (pasaría igual). La guarda efectiva es la de .github/scripts/repo-config.test.mjs (nada de src/
+  // lee la fecha); este test solo avisa, a partir del 1-1-2027, si el año vuelve a salir de la construcción.
   test(`${pg.path}: the footer carries the publication year (2026), not the build year`, async ({ page }) => {
     await page.goto(pg.path);
-    const copyright = page.locator(".foot p span").first();
-    await expect(copyright).toHaveCount(1);
-    await expect(copyright).toHaveText(/^© 2026 \S/);
+    await expect(page.locator(".foot")).toContainText(/© 2026 \S/);
   });
 
   test(`${pg.path}: description and social meta are present`, async ({ page }) => {

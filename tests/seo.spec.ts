@@ -73,10 +73,6 @@ test("robots.txt keeps search engines in and AI training crawlers out", () => {
   expect(all, "falta el grupo `User-agent: *`").toBeDefined();
   expect(all!.rules).toContain("allow: /");
   expect(all!.rules).not.toContain("disallow: /");
-  // Para quien no esté en la lista: se puede buscar, no entrenar (Content Signals).
-  const signal = all!.rules.find((r) => r.startsWith("content-signal:"));
-  expect(signal, "falta Content-Signal en el grupo general").toMatch(/\bai-train=no\b/);
-  expect(signal).toMatch(/\bsearch=yes\b/);
 
   for (const crawler of AI_TRAINING_CRAWLERS) {
     expect(groupOf(crawler)?.rules, `${crawler} no tiene \`Disallow: /\``).toContain("disallow: /");
@@ -85,6 +81,19 @@ test("robots.txt keeps search engines in and AI training crawlers out", () => {
   for (const engine of ["Googlebot", "Bingbot"]) {
     expect(groupOf(engine), `${engine} no debe tener un grupo que lo bloquee`).toBeUndefined();
   }
+});
+
+// Lighthouse (check obligatorio del CI) da el robots.txt por no válido ante una directiva que no
+// conoce, como `Content-Signal`, y la nota de SEO baja de 1. Solo las directivas estándar.
+test("robots.txt only uses standard directives (Lighthouse rejects unknown ones)", () => {
+  const directives = readFileSync("dist/robots.txt", "utf8")
+    .split("\n")
+    .map((line) => line.replace(/#.*/, "").trim())
+    .filter(Boolean)
+    .map((line) => line.split(":")[0]!.trim().toLowerCase());
+  // Control positivo: se han leído directivas de verdad.
+  expect(directives).toContain("user-agent");
+  expect(directives.filter((d) => !["user-agent", "allow", "disallow", "sitemap"].includes(d))).toEqual([]);
 });
 
 test("robots.txt points to the sitemap index, which points to the sitemap", () => {

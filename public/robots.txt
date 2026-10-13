@@ -1,9 +1,7 @@
 # Buscadores y búsqueda con IA: bienvenidos. Entrenar modelos de IA con estos contenidos: no
 # (los textos y la marca tienen todos los derechos reservados; ver NOTICE en el repositorio).
-# Content-Signal: https://contentsignals.org/
 
 User-agent: *
-Content-Signal: search=yes, ai-input=yes, ai-train=no
 Allow: /
 
 # Rastreadores que recogen contenido para entrenar modelos de IA.

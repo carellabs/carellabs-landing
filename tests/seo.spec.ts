@@ -1,5 +1,7 @@
 import { readFileSync } from "node:fs";
 import { test, expect } from "@playwright/test";
+import { serializeJsonLd } from "../src/lib/jsonld";
+import { HERO_FOCUS } from "./viewports";
 
 // Lo que se publica para los buscadores (dist/ lo deja `astro build` antes de lanzar los tests).
 const SITE = "https://carellabs.com";
@@ -159,6 +161,67 @@ for (const lang of ["es", "en"] as const) {
     expect(t.meta.ogImageAlt.length).toBeGreaterThanOrEqual(20);
   });
 }
+
+// Datos estructurados: un JSON-LD de schema.org `Person` por página indexable, con los textos de su
+// idioma. No es código: la CSP (`default-src 'none'`) no lo bloquea ni hace falta tocarla.
+const JSON_LD = 'script[type="application/ld+json"]';
+for (const lang of ["es", "en"] as const) {
+  const path = lang === "es" ? "/" : "/en/";
+
+  test(`${path}: one JSON-LD Person block, with the texts of the page's language`, async ({ page }) => {
+    const t = messages(lang);
+    await page.goto(path);
+    const blocks = page.locator(JSON_LD);
+    await expect(blocks).toHaveCount(1);
+    const data = JSON.parse((await blocks.textContent())!);
+
+    // Todos los campos, ni uno más ni uno menos, con los textos de i18n de este idioma.
+    expect(data).toEqual({
+      "@context": "https://schema.org",
+      "@type": "Person",
+      name: t.hero.name,
+      jobTitle: t.meta.jobTitle,
+      url: lang === "es" ? `${SITE}/` : `${SITE}/en/`,
+      sameAs: t.contact.links.map((link: { href: string }) => link.href),
+      address: { "@type": "PostalAddress", addressLocality: t.meta.locality, addressCountry: "ES" },
+      knowsAbout: t.hero.note,
+    });
+
+    // Anclas que no dependen de los JSON de i18n: lo que de verdad se quiere publicar.
+    expect(data.name).toBe("Fabrizio Carella");
+    expect(data.jobTitle).toBe("Full Stack Developer");
+    expect(data.sameAs).toEqual(["https://www.linkedin.com/in/fabriziocarella", "https://github.com/carellabs"]);
+    expect(data.address).toEqual({ "@type": "PostalAddress", addressLocality: "Madrid", addressCountry: "ES" });
+    expect(data.knowsAbout).toEqual([...HERO_FOCUS[lang].items]);
+
+    // La URL es la canónica de la página, y los perfiles, los enlaces de contacto que se ven.
+    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", data.url);
+    const visible = await page.locator("#contacto .links a").evaluateAll((as) => as.map((a) => a.getAttribute("href")));
+    expect(visible).toEqual(data.sameAs);
+  });
+}
+
+test("the 404 page has no JSON-LD", async ({ page }) => {
+  // Control positivo: el mismo selector sí encuentra el bloque en una página indexable.
+  await page.goto("/");
+  await expect(page.locator(JSON_LD)).toHaveCount(1);
+
+  const res = await page.goto("/no-existe");
+  expect(res?.status()).toBe(404);
+  await expect(page.locator(JSON_LD)).toHaveCount(0);
+  await expect(page.locator("script")).toHaveCount(0);
+});
+
+test("serializeJsonLd escapes `<` so that no text can close the <script> tag", () => {
+  const data = { name: "</script><script>alert(1)</script>", note: "<!-- x", list: ["a<b", "ok"] };
+  const out = serializeJsonLd(data);
+  expect(out).not.toContain("<");
+  expect(out).toContain("\\u003c/script>");
+  // El navegador lo lee de vuelta tal cual: el escape no cambia los datos.
+  expect(JSON.parse(out)).toEqual(data);
+  // Control positivo: sin `<` la salida es exactamente `JSON.stringify`.
+  expect(serializeJsonLd({ a: ["b", 1], c: { d: null } })).toBe('{"a":["b",1],"c":{"d":null}}');
+});
 
 // Imagen de previsualización en redes: una por idioma, con el titular de cada uno
 // (las genera `npm run og` a partir de src/i18n/*.json).

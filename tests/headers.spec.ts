@@ -86,8 +86,35 @@ test("the CSP lets nothing run or connect: scripts, connections, frames, workers
   }
 });
 
-// Sin <script> en el HTML publicado: es lo que hace correcta una CSP que no permite scripts.
-test("the built HTML has no <script> or inline event handlers, because the CSP does not allow scripts", () => {
+// Sin código en el HTML publicado: es lo que hace correcta una CSP que no permite scripts. La única
+// excepción es un bloque de datos, el JSON-LD de las dos páginas indexables (<script
+// type="application/ld+json">): el navegador no lo ejecuta, así que la CSP no lo bloquea ni cambia.
+/** Una etiqueta de apertura <script ...> y los valores de sus atributos, en minúsculas. */
+type ScriptTag = { tag: string; type: string | null; src: string | null };
+
+function scriptTags(html: string): ScriptTag[] {
+  /** El valor de un atributo, con comillas dobles, simples o sin ellas, o `null` si no está. */
+  const valueOf = (pattern: RegExp, tag: string) => {
+    const match = pattern.exec(tag);
+    return match ? (match[1] ?? match[2] ?? match[3] ?? "").toLowerCase() : null;
+  };
+  return [...html.matchAll(/<script\b[^>]*>/gi)].map(([tag]) => ({
+    tag,
+    type: valueOf(/\stype\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i, tag),
+    src: valueOf(/\ssrc\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i, tag),
+  }));
+}
+
+/** Un bloque de datos JSON-LD: tipo propio, sin ficheros externos. No es código. */
+const isJsonLd = (script: ScriptTag) => script.type === "application/ld+json" && script.src === null;
+
+/** Un manejador en línea (onerror=, onClick=...) también es script, y la CSP también lo bloquea. */
+const hasInlineHandler = (html: string) => /<[^>]*\son[a-z]+\s*=/i.test(html);
+
+/** Cuántos bloques JSON-LD lleva cada página; cualquier otra, ninguno. */
+const JSON_LD_BLOCKS: Record<string, number> = { "index.html": 1, "en/index.html": 1 };
+
+test("the built HTML has no code: only the JSON-LD data block in the two pages, no other <script> or inline handlers", () => {
   const pages = readdirSync("dist", { recursive: true })
     .map((file) => String(file).replaceAll("\\", "/"))
     .filter((file) => file.endsWith(".html"))
@@ -97,29 +124,60 @@ test("the built HTML has no <script> or inline event handlers, because the CSP d
     expect.arrayContaining(["404.html", "en/index.html", "index.html"]),
   );
 
-  // Control positivo 2: el detector ve un <script> (en línea, con src, con atributos y con otra capitalización)
-  // y un manejador en línea (onerror=, onClick=), que también es script y la CSP también bloquea.
-  const hasScript = (html: string) => /<script\b/i.test(html) || /<[^>]*\son[a-z]+\s*=/i.test(html);
+  // Control positivo 2: el detector ve un <script> (en línea, con src, con atributos, con otra
+  // capitalización y con otro tipo) y un manejador en línea (onerror=, onClick=).
   // Control negativo: texto o atributos normales no cuentan como manejador.
   for (const sample of ['<p> once = twice</p>', '<meta name="description" content="Persona=dato">', '<a href="/one=1">']) {
-    expect(hasScript(sample), `falso positivo en ${sample}`).toBe(false);
+    expect(hasInlineHandler(sample), "falso positivo en " + sample).toBe(false);
+    expect(scriptTags(sample), "falso positivo en " + sample).toEqual([]);
   }
   for (const sample of [
     "<script>1</script>",
     '<script src="/a.js"></script>',
     '<SCRIPT type="module">',
-    '<img src="/a.png" onerror="x()">',
-    "<button type=button onClick='go()'>",
+    '<script type="application/json">',
+    '<script type="application/ld+json" src="/a.json"></script>',
   ]) {
-    expect(hasScript(sample), `el detector no ve ${sample}`).toBe(true);
+    const scripts = scriptTags(sample);
+    expect(scripts, "el detector no ve " + sample).toHaveLength(1);
+    expect(scripts.filter((script) => !isJsonLd(script)), "se daría por bueno " + sample).toHaveLength(1);
+  }
+  for (const sample of ['<img src="/a.png" onerror="x()">', "<button type=button onClick='go()'>"]) {
+    expect(hasInlineHandler(sample), "el detector no ve " + sample).toBe(true);
+  }
+  // Control positivo 3: el bloque de datos sí se reconoce como tal, con comillas simples o dobles.
+  for (const sample of ['<script type="application/ld+json">', "<script type='application/ld+json'>", '<SCRIPT TYPE="Application/LD+JSON">']) {
+    expect(scriptTags(sample).map(isJsonLd), "no se reconoce el JSON-LD de " + sample).toEqual([true]);
   }
 
-  const withScript = pages.filter((file) => hasScript(readFileSync(`dist/${file}`, "utf8")));
+  const found = pages.map((file) => {
+    const html = readFileSync("dist/" + file, "utf8");
+    const scripts = scriptTags(html);
+    return {
+      file,
+      jsonLd: scripts.filter(isJsonLd).length,
+      other: scripts.filter((script) => !isJsonLd(script)).map((script) => script.tag),
+      handlers: hasInlineHandler(html),
+    };
+  });
+
+  // Los dos bloques JSON-LD, exactamente uno por página indexable y ninguno en la 404.
   expect(
-    withScript,
+    Object.fromEntries(found.map(({ file, jsonLd }) => [file, jsonLd])),
+    "Debe haber un único <script type=\"application/ld+json\"> en index.html y en en/index.html, y ninguno en la 404",
+  ).toEqual(Object.fromEntries(pages.map((file) => [file, JSON_LD_BLOCKS[file] ?? 0])));
+
+  // Nada más: ningún otro <script> ni manejador en línea.
+  const help =
     "La CSP de public/_headers no permite scripts ni manejadores en línea (default-src 'none' y sin script-src). " +
-      "Si se añade un <script> o un onclick=..., hay que revisar la CSP a la vez, o el navegador lo bloqueará. " +
-      '(Un JSON-LD, <script type="application/ld+json">, no se ejecuta, pero este test también lo marca: ajústalo entonces.)',
+    "Si se añade un <script> que no sea el JSON-LD, o un onclick=..., hay que revisar la CSP a la vez, o el navegador lo bloqueará.";
+  expect(
+    found.flatMap(({ file, other }) => other.map((tag) => file + ": " + tag)),
+    "<script> que no es el bloque JSON-LD. " + help,
+  ).toEqual([]);
+  expect(
+    found.filter(({ handlers }) => handlers).map(({ file }) => file),
+    "manejador de eventos en línea (on*=). " + help,
   ).toEqual([]);
 });
 
@@ -158,6 +216,10 @@ for (const { scheme, path } of CASES) {
     // Control positivo 1: la política viaja de verdad en la respuesta.
     expect(response?.headers()["content-security-policy"]).toBe(csp);
     await page.evaluate(() => document.fonts.ready);
+
+    // Control positivo 1b: el bloque JSON-LD está en las páginas indexables (y no en la 404), así que
+    // el "sin violaciones" de abajo lo incluye: un dato en un <script> que el navegador no ejecuta.
+    await expect(page.locator('script[type="application/ld+json"]')).toHaveCount(path === "/no-existe" ? 0 : 1);
 
     // Control positivo 2: con la política activa la web sigue funcionando (hoja de estilos y fuente).
     const state = await page.evaluate(() => ({

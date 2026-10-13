@@ -5,6 +5,7 @@ import "../styles/global.css";
 import monoLatin from "@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2?url";
 import es from "../i18n/es.json";
 import en from "../i18n/en.json";
+import { serializeJsonLd } from "../lib/jsonld";
 
 interface Props {
   lang: "es" | "en";
@@ -24,6 +25,17 @@ const site = Astro.site ?? new URL("https://carellabs.com");
 const canonical = new URL(Astro.url.pathname, site);
 const esUrl = new URL("/", site);
 const enUrl = new URL("/en/", site);
+// Datos estructurados (schema.org `Person`) con los textos del idioma de la página.
+const person = {
+  "@context": "https://schema.org",
+  "@type": "Person",
+  name: t.hero.name,
+  jobTitle: t.meta.jobTitle,
+  url: canonical.href,
+  sameAs: t.contact.links.map((link) => link.href),
+  address: { "@type": "PostalAddress", addressLocality: t.meta.locality, addressCountry: "ES" },
+  knowsAbout: t.hero.note,
+};
 ---
 
 <!doctype html>
@@ -68,6 +80,8 @@ const enUrl = new URL("/en/", site);
           <meta name="twitter:card" content="summary_large_image" />
           <meta name="twitter:image" content={new URL(`/og-${lang}.png`, site)} />
           <meta name="twitter:image:alt" content={t.meta.ogImageAlt} />
+          {/* Un bloque de datos, no código: el navegador no lo ejecuta y la CSP no lo bloquea. */}
+          <script type="application/ld+json" is:inline set:html={serializeJsonLd(person)}></script>
         </>
       )
     }

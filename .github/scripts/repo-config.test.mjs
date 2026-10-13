@@ -669,40 +669,81 @@ describe("prod-check.yml: comprobación de producción (informativa, no bloquea 
   });
 });
 
-describe("src/: el build es reproducible (el mismo commit da siempre el mismo HTML)", () => {
-  /** Lo que haría depender el HTML de cuándo se construye. */
-  const LEE_LA_FECHA = /\bnew\s+Date\s*\(|\bDate\s*\.\s*now\s*\(/;
+describe("src/ y astro.config.mjs: el build es reproducible (el mismo commit da siempre el mismo HTML)", () => {
+  /** Lo que haría depender el HTML de cuándo se construye: `new Date(`, `Date(` (sin `new`) y `Date.now(`. */
+  const LEE_LA_FECHA = /\bDate\s*\(|\bDate\s*\.\s*now\s*\(/;
 
-  /** Los ficheros de código de src/ (componentes, páginas y scripts que se compilan al sitio). */
-  const codigoDeSrc = () =>
-    readdirSync(join(ROOT, "src"), { recursive: true })
+  /** Los ficheros que se compilan al sitio: el código de src/ (componentes, páginas, scripts) y la configuración de Astro. */
+  const ficherosQueSeCompilan = () => [
+    ...readdirSync(join(ROOT, "src"), { recursive: true })
       .map(String)
       .filter((f) => /\.(astro|[cm]?[jt]sx?)$/.test(f))
-      .map((f) => ({ file: f.split("\\").join("/"), text: read(join("src", f)) }));
+      .map((f) => ({ ruta: `src/${f.split("\\").join("/")}`, texto: read(join("src", f)) })),
+    { ruta: "astro.config.mjs", texto: read("astro.config.mjs") },
+  ];
 
-  test("ningún fichero de src/ lee la fecha (new Date( o Date.now()): el año del pie, p. ej., sale del código", () => {
-    const ficheros = codigoDeSrc();
-    // Control positivo: se están revisando ficheros de verdad, de los dos tipos.
-    assert.ok(ficheros.length >= 10, `solo ${ficheros.length} ficheros en src/`);
-    assert.ok(ficheros.some((f) => f.file.endsWith(".astro")));
-    assert.ok(ficheros.some((f) => f.file.endsWith(".ts")));
+  /** Rutas de los ficheros que leen la fecha. */
+  const culpablesDe = (ficheros) => ficheros.filter((f) => LEE_LA_FECHA.test(f.texto)).map((f) => f.ruta);
 
-    const culpables = ficheros.filter((f) => LEE_LA_FECHA.test(f.text)).map((f) => `src/${f.file}`);
-    assert.deepEqual(
-      culpables,
-      [],
-      `${culpables.join(", ")} lee la fecha de construcción. El mismo commit tiene que generar siempre el ` +
-        "mismo HTML: prod-check lo compara byte a byte con producción, y un valor sacado de la fecha (el año " +
-        "del pie, p. ej.) lo rompería al cambiar de día o de año. Si hace falta una fecha, escríbela en el " +
-        "código (el año de publicación, no el de construcción).",
-    );
+  /** Por qué falla la guarda y qué hacer. */
+  const explicacion = (culpables) =>
+    `${culpables.join(", ")} lee la fecha de construcción. El mismo commit tiene que generar siempre el ` +
+    "mismo HTML: prod-check lo compara byte a byte con producción, y un valor sacado de la fecha (el año " +
+    "del pie, p. ej.) lo rompería al cambiar de día o de año. Si hace falta una fecha, escríbela en el " +
+    "código (el año de publicación, no el de construcción).";
+
+  test("ningún fichero de src/ ni astro.config.mjs lee la fecha: el año del pie, p. ej., sale del código", () => {
+    const ficheros = ficherosQueSeCompilan();
+    // Control positivo: se están revisando ficheros de verdad, de los tres tipos.
+    assert.ok(ficheros.some((f) => f.ruta.startsWith("src/") && f.ruta.endsWith(".astro")));
+    assert.ok(ficheros.some((f) => f.ruta.startsWith("src/") && f.ruta.endsWith(".ts")));
+    assert.match(ficheros.find((f) => f.ruta === "astro.config.mjs")?.texto ?? "", /defineConfig/);
+
+    const culpables = culpablesDe(ficheros);
+    assert.deepEqual(culpables, [], explicacion(culpables));
   });
 
-  test("la regla detecta las dos formas de leer la fecha, con espacios y sin ellos, y no confunde otras cosas", () => {
-    for (const texto of ["new Date()", "new Date().getFullYear()", "new  Date (0)", "Date.now()", "Date . now ()", "x = Date.now( )"]) {
+  test("al fallar, el mensaje nombra los ficheros y explica el motivo y qué hacer", () => {
+    const mensaje = explicacion(["src/a.astro", "astro.config.mjs"]);
+    assert.ok(mensaje.startsWith("src/a.astro, astro.config.mjs lee la fecha de construcción."), mensaje);
+    for (const frase of ["mismo commit", "mismo HTML", "byte a byte", "producción", "año de publicación"]) {
+      assert.ok(mensaje.includes(frase), `falta «${frase}»: ${mensaje}`);
+    }
+  });
+
+  test("señala a los ficheros que la leen, también la configuración de Astro y `Date()` sin `new`", () => {
+    const culpables = culpablesDe([
+      { ruta: "astro.config.mjs", texto: "export default { define: { AHORA: String(Date()) } };" },
+      { ruta: "src/a.astro", texto: "const year = new Date().getFullYear();" },
+      { ruta: "src/b.ts", texto: "export const t = Date.now();" },
+      { ruta: "src/c.ts", texto: "export const year = 2026;" },
+    ]);
+    assert.deepEqual(culpables, ["astro.config.mjs", "src/a.astro", "src/b.ts"]);
+  });
+
+  test("la regla detecta las tres formas de leer la fecha, con espacios y sin ellos, y no confunde otras cosas", () => {
+    for (const texto of [
+      "new Date()",
+      "new Date().getFullYear()",
+      "new  Date (0)",
+      "Date()",
+      "Date ()",
+      "String(Date())",
+      "Date.now()",
+      "Date . now ()",
+      "x = Date.now( )",
+    ]) {
       assert.match(texto, LEE_LA_FECHA, texto);
     }
-    for (const texto of ["const year = 2026;", "UpdateDate(", "isDate(x)", "new Datepicker()", "candidate.now()", "// la fecha"]) {
+    for (const texto of [
+      "const year = 2026;",
+      "UpdateDate(",
+      "isDate(x)",
+      "toDate(x)",
+      "new Datepicker()",
+      "candidate.now()",
+      "// la fecha",
+    ]) {
       assert.doesNotMatch(texto, LEE_LA_FECHA, texto);
     }
   });

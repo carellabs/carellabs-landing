@@ -62,7 +62,11 @@ for (const pg of PAGES) {
         await page.goto(pg.path);
         const card = page.locator(".apps .app").first();
         const { cardBg, image, dots, texts } = await card.evaluate((el, selectors) => {
-          const pick = (sel: string) => (el.querySelector(`${sel} a`) ?? el.querySelector(sel)) as HTMLElement;
+          const pick = (sel: string) => {
+            const found = el.querySelector<HTMLElement>(`${sel} a`) ?? el.querySelector<HTMLElement>(sel);
+            if (!found) throw new Error(`la tarjeta destacada no tiene ${sel}`);
+            return found;
+          };
           // `--dots` llega minificado (`#ededea12`): se resuelve a `rgba()` con un elemento de prueba.
           const probe = document.createElement("span");
           probe.style.color = "var(--dots)";

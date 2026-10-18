@@ -6,6 +6,7 @@ export type Lang = "es" | "en";
 /** Lo que leen los tests de src/i18n: así no fijan cifras ni textos que cambian con el contenido. */
 export interface Messages {
   experience: { items: { company: string; highlights?: string[] }[] };
+  about: { stackTitle: string; stackGroups: { label: string; items: string[] }[] };
 }
 
 /** Los textos de un idioma, tal como están en src/i18n. */

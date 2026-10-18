@@ -37,7 +37,10 @@
     "p2": "I work comfortably across backend, frontend and desktop, and I work daily with business stakeholders in English to turn operational processes into technical decisions. Before software I worked in logistics and technical drafting, which still shapes how I approach a system: how its parts interact, how they fail and how they evolve.",
     "p3": "Outside work I'm building my own SaaS products, with the goal of bringing them to market. I handle the whole product, from the data model and business logic to payments and deployment. Almost everything is in TypeScript, tested from the start and, when the use case calls for it, built to keep working offline.",
     "stackTitle": "Usual stack",
-    "stack": ["Node.js", "TypeScript", "React", "PostgreSQL", "Docker", "AWS", "Elasticsearch", "Vue.js"],
+    "stackGroups": [
+      { "label": "At work", "items": ["Node.js", "Vue 3", "Electron", "Elasticsearch", "MySQL", "AWS", "Docker", "OpenShift"] },
+      { "label": "In my own projects", "items": ["TypeScript", "React", "Fastify", "PostgreSQL", "Drizzle", "Playwright"] }
+    ],
     "languagesTitle": "Languages",
     "languages": ["Spanish (native)", "English (professional)", "Galician (professional)"]
   },

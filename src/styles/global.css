@@ -256,6 +256,14 @@ p { text-wrap: pretty; }
   color: var(--ink-3);
 }
 .spec .langs li { color: var(--ink-2); }
+/* Cada grupo del stack lleva su etiqueta (nombre accesible de su lista) y se separa del siguiente. */
+.stack-group + .stack-group { margin-top: 1rem; }
+.stack-label {
+  margin-bottom: 0.4rem;
+  font-family: var(--display);
+  font-size: 0.75rem;
+  color: var(--ink-2);
+}
 
 /* ---------- Laboratorio: mosaico de módulos ---------- */
 .apps { display: grid; gap: 1rem; margin-top: 2rem; }

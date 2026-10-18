@@ -198,6 +198,26 @@ for (const pg of PAGES) {
     await expect(current.locator(".company")).toHaveText("AMURA IT");
   });
 
+  test(`${pg.path}: the stack is split into labelled groups, each list named after its group`, async ({ page }) => {
+    await page.goto(pg.path);
+    const { stackTitle, stackGroups } = messagesOf(pg.lang).about;
+    // Controles positivos: hay más de un grupo, todos con fichas, y el encabezado del bloque está pintado.
+    expect(stackGroups.length, "el stack no está dividido en grupos en i18n").toBeGreaterThan(1);
+    const profile = page.locator("#perfil");
+    await expect(profile.locator("dt").first()).toHaveText(stackTitle);
+
+    for (const group of stackGroups) {
+      expect(group.items.length, `${group.label}: grupo sin fichas en i18n`).toBeGreaterThan(0);
+      // La etiqueta se ve y es el nombre accesible de su lista (lo que anuncia un lector de pantalla).
+      await expect(profile.getByText(group.label, { exact: true })).toBeVisible();
+      const list = profile.getByRole("list", { name: group.label, exact: true });
+      await expect(list, `${group.label}: su lista no lleva ese nombre accesible`).toHaveCount(1);
+      await expect(list.getByRole("listitem")).toHaveText(group.items);
+    }
+    // Ni una lista de fichas de más: la antigua lista plana ya no existe.
+    await expect(profile.locator("ul.tokens")).toHaveCount(stackGroups.length);
+  });
+
   test(`${pg.path}: only the jobs with highlights in src/i18n show a list of achievements`, async ({ page }) => {
     await page.goto(pg.path);
     const all = messagesOf(pg.lang).experience.items;

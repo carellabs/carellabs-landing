@@ -23,6 +23,11 @@ for (const page of PAGES) {
         // Las de filas posteriores (una 4.ª app, por ejemplo) no cuentan.
         const peers = rest.filter((card) => card.top < featured!.bottom && card.left >= featured!.right);
         test.skip(grid.cols < 2 || peers.length === 0, "una columna o ninguna tarjeta al lado: no hay mosaico que nivelar");
+        // La destacada solo ocupa dos filas si justo otras dos apps llenan su lado. Con más apps se queda en
+        // una fila: alargada a dos, su texto corto dejaría un hueco vacío dentro de la tarjeta.
+        expect(peers.length, "la destacada reserva más filas de las que sus vecinas llenan").toBe(
+          VISIBLE_APPS.length === 3 ? 2 : 1,
+        );
         // Si la destacada reservara una fila que nadie llena, sobresaldría por debajo de las de su lado.
         expect(featured!.bottom, "la tarjeta destacada no termina a la altura de las de su lado").toBe(
           Math.max(...peers.map((card) => card.bottom)),

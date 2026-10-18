@@ -34,7 +34,8 @@ for (const pg of PAGES) {
           .evaluate((el) => getComputedStyle(el, "::before").borderTopColor);
         expect(contrast(node, bg), `nodo ${node} sobre ${bg}`).toBeGreaterThanOrEqual(3);
 
-        // Ninguna app usa hoy el estado "live": se fuerza en el DOM para ejercitar la regla CSS.
+        // El estado "live" se fuerza en el DOM sobre la primera tarjeta, diga lo que diga apps.json,
+        // para ejercitar la regla CSS siempre.
         const live = await page
           .locator(".apps .app")
           .first()
@@ -53,9 +54,10 @@ for (const pg of PAGES) {
         expect(contrast(live.text, live.fill), `texto live ${JSON.stringify(live)}`).toBeGreaterThanOrEqual(4.5);
       });
 
-      // axe no puede resolver el fondo de puntos de la tarjeta FinApp (un degradado) y marca sus
+      // axe no puede resolver el fondo de puntos de la tarjeta destacada (un degradado) y marca sus
       // textos como "incomplete" (ver a11y.spec.ts). Se comprueban aquí contra el PEOR fondo
-      // posible: el color de la tarjeta con el centro de un punto translúcido encima.
+      // posible: el color de la tarjeta con el centro de un punto translúcido encima. Un texto con
+      // relleno propio (el estado «Disponible» es ámbar con texto oscuro) se mide contra ese relleno.
       test("the first app card text keeps AA contrast over its dotted background", async ({ page }) => {
         await page.goto(pg.path);
         const card = page.locator(".apps .app").first();
@@ -71,7 +73,10 @@ for (const pg of PAGES) {
             cardBg: getComputedStyle(el).backgroundColor,
             image: getComputedStyle(el).backgroundImage,
             dots,
-            texts: selectors.map((sel) => ({ sel, color: getComputedStyle(pick(sel)).color })),
+            texts: selectors.map((sel) => {
+              const cs = getComputedStyle(pick(sel));
+              return { sel, color: cs.color, fill: cs.backgroundColor };
+            }),
           };
         }, [...DOTTED_CARD_TEXTS]);
 
@@ -82,8 +87,10 @@ for (const pg of PAGES) {
         expect(worst, "el punto no cambia el fondo: el peor caso no se está calculando").not.toBe(cardBg);
         expect(texts).toHaveLength(DOTTED_CARD_TEXTS.length);
 
-        for (const { sel, color } of texts) {
-          expect(contrast(color, worst), `${sel}: ${color} sobre ${worst}`).toBeGreaterThanOrEqual(4.5);
+        for (const { sel, color, fill } of texts) {
+          // Sin relleno propio (transparente) es el peor fondo; con relleno opaco, el relleno.
+          const behind = blend(fill, worst);
+          expect(contrast(color, behind), `${sel}: ${color} sobre ${behind}`).toBeGreaterThanOrEqual(4.5);
         }
       });
 

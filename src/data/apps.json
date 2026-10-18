@@ -1,10 +1,31 @@
 [
   {
+    "id": "carellabs",
+    "name": "carellabs.com",
+    "status": "live",
+    "url": "https://github.com/carellabs/carellabs-landing",
+    "stack": ["Astro", "TypeScript", "Playwright", "GitHub Actions", "Cloudflare Workers"],
+    "description": {
+      "es": "Esta web: portfolio estático y bilingüe, sin JavaScript ejecutable, con CSP estricta, tests de accesibilidad y una comprobación diaria de que lo publicado es exactamente lo construido.",
+      "en": "This site: a static, bilingual portfolio with no executable JavaScript, a strict CSP, accessibility tests and a daily check that what is live is exactly what was built."
+    }
+  },
+  {
+    "id": "kronos",
+    "name": "Kronos",
+    "status": "in-progress",
+    "stack": ["TypeScript", "Fastify", "Drizzle", "PostgreSQL", "React", "PWA"],
+    "description": {
+      "es": "Gestión de un club de boxeo: panel para los instructores y una PWA de pista que funciona sin conexión para pasar lista. Calcula quién puede hacer sparring a partir de la caducidad de su licencia federativa.",
+      "en": "Management for a boxing club: a dashboard for instructors and an offline-first PWA for taking attendance at the gym. It works out who is cleared for sparring from the expiry of their federation licence."
+    }
+  },
+  {
     "id": "finapp",
     "name": "FinApp",
     "status": "in-progress",
     "url": "https://finanzas.carellabs.com",
-    "stack": ["Node.js", "TypeScript", "React", "PostgreSQL"],
+    "stack": ["Express", "PostgreSQL", "React", "fast-check"],
     "description": {
       "es": "Finanzas personales con un modelo de datos granular: gastos clasificados en dos ejes, mes de cobertura independiente de la fecha y transferencias internas excluidas de los totales.",
       "en": "Personal finance built on a granular data model: expenses classified on two axes, coverage month decoupled from transaction date, internal transfers excluded from totals."
@@ -15,7 +36,7 @@
     "name": "Barber",
     "status": "in-progress",
     "url": "https://barberia.carellabs.com",
-    "stack": ["Node.js", "TypeScript", "React", "PostgreSQL", "Google Calendar"],
+    "stack": ["TypeScript", "Fastify", "Drizzle", "PostgreSQL", "React", "Google Calendar"],
     "description": {
       "es": "Gestión de citas multi-tenant para barberías. Motor de franjas horarias con lógica transaccional y sincronización con Google Calendar.",
       "en": "Multi-tenant appointment management for barbershops. Slot engine with transactional logic and Google Calendar sync."

@@ -46,7 +46,7 @@
   },
   "lab": {
     "title": "Lab",
-    "intro": "Side projects where I put what I learn into practice. Each one will live on its own subdomain once it's ready.",
+    "intro": "My own projects, where I put what I learn into practice. The ones still in development will go live when they're ready.",
     "status": {
       "in-progress": "In development",
       "beta": "Beta",

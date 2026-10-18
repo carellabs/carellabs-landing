@@ -2,13 +2,40 @@ import { readFileSync } from "node:fs";
 import { test, expect } from "@playwright/test";
 import { HERO_FOCUS, PAGES } from "./viewports";
 import { PLACEHOLDERS } from "./placeholders";
-import { APPS, HIDDEN_APPS, VISIBLE_APPS } from "./apps";
+import { APPS, HIDDEN_APPS, VISIBLE_APPS, isLinked } from "./apps";
 import { messagesOf } from "./messages";
+import { hostLine } from "../src/lib/host";
 
 test("apps.json: `hidden`, when present, is a boolean", () => {
   for (const app of APPS) {
     if ("hidden" in app) expect(typeof app.hidden, `${app.name}: hidden debe ser true o false`).toBe("boolean");
   }
+});
+
+test("apps.json: live and beta apps have an https url, and any url that is present is https", () => {
+  // Control positivo: hay apps con enlace y apps sin él, para que el recorrido compruebe algo de cada.
+  expect(APPS.some(isLinked), "ninguna app en beta o disponible").toBe(true);
+  expect(APPS.some((app) => !isLinked(app)), "todas las apps están en beta o disponibles").toBe(true);
+  for (const app of APPS) {
+    if (isLinked(app)) expect(app.url, `${app.name}: en ${app.status} necesita url`).toBeTruthy();
+    if (app.url === undefined) continue;
+    expect(URL.canParse(app.url), `${app.name}: la url no es una URL`).toBe(true);
+    expect(new URL(app.url).protocol, `${app.name}: la url tiene que ser https`).toBe("https:");
+  }
+});
+
+test("hostLine: the host line is the hostname plus the path, without the trailing slash", () => {
+  const cases: [string, string][] = [
+    ["https://finanzas.carellabs.com", "finanzas.carellabs.com"],
+    ["https://finanzas.carellabs.com/", "finanzas.carellabs.com"],
+    ["https://github.com/carellabs/carellabs-landing", "github.com/carellabs/carellabs-landing"],
+    ["https://github.com/carellabs/carellabs-landing/", "github.com/carellabs/carellabs-landing"],
+    ["https://example.com//", "example.com"],
+    // Ni la búsqueda, ni el fragmento, ni el puerto forman parte de la dirección que se enseña.
+    ["https://github.com/carellabs/carellabs-landing?tab=readme#top", "github.com/carellabs/carellabs-landing"],
+    ["https://localhost:8443/app/", "localhost/app"],
+  ];
+  for (const [url, expected] of cases) expect(hostLine(url), url).toBe(expected);
 });
 
 const GROUP_TITLES = {
@@ -157,14 +184,40 @@ for (const pg of PAGES) {
     await expect(inProgress).toHaveCount(0);
   });
 
-  test(`${pg.path}: each app shows the hostname of its url`, async ({ page }) => {
+  test(`${pg.path}: the cards follow apps.json; only live and beta ones are links with a host line`, async ({ page }) => {
     await page.goto(pg.path);
-    const hosts = page.locator(".apps .app .host");
-    await expect(hosts).toHaveCount(VISIBLE_APPS.length);
-    await expect(hosts.first()).toHaveText("finanzas.carellabs.com");
+    const cards = page.locator("#lab .apps .app");
+    // Controles positivos: hay tarjetas con y sin enlace, y el recuento es el de las apps no ocultas.
+    expect(VISIBLE_APPS.some(isLinked), "ninguna app visible en beta o disponible").toBe(true);
+    expect(VISIBLE_APPS.some((app) => !isLinked(app)), "todas las apps visibles enlazan").toBe(true);
+    await expect(cards).toHaveCount(VISIBLE_APPS.length);
+
     for (const [i, app] of VISIBLE_APPS.entries()) {
-      await expect(hosts.nth(i)).toHaveText(new URL(app.url).hostname);
+      const card = cards.nth(i);
+      await expect(card.locator(".name"), `tarjeta ${i + 1}: no es ${app.name}`).toHaveText(app.name);
+      if (isLinked(app)) {
+        await expect(card.locator(".name a"), `${app.name}: debe enlazar`).toHaveAttribute("href", app.url!);
+        await expect(card.locator(".host"), `${app.name}: debe enseñar su dirección`).toHaveText(hostLine(app.url!));
+      } else {
+        await expect(card.locator(".name a"), `${app.name}: no debe enlazar`).toHaveCount(0);
+        await expect(card.locator(".host"), `${app.name}: no debe enseñar una dirección que aún no existe`).toHaveCount(0);
+      }
     }
+    // Y no hay líneas de dirección de más en el laboratorio.
+    await expect(page.locator("#lab .host")).toHaveCount(VISIBLE_APPS.filter(isLinked).length);
+  });
+
+  test(`${pg.path}: the carellabs.com card is the featured one, links to the repository and shows its path`, async ({ page }) => {
+    await page.goto(pg.path);
+    const app = APPS.find((a) => a.id === "carellabs");
+    expect(app, "no hay una app con id «carellabs» en apps.json").toBeDefined();
+    expect(VISIBLE_APPS[0], "carellabs.com tiene que ser la primera tarjeta").toBe(app);
+
+    const card = page.locator("#lab .apps .app").first();
+    const link = card.getByRole("link", { name: "carellabs.com" });
+    await expect(link).toHaveCount(1);
+    await expect(link).toHaveAttribute("href", "https://github.com/carellabs/carellabs-landing");
+    await expect(card.locator(".host")).toHaveText("github.com/carellabs/carellabs-landing");
   });
 
   test(`${pg.path}: hidden apps are not shown, neither their name nor their hostname`, async ({ page }) => {
@@ -174,7 +227,7 @@ for (const pg of PAGES) {
     const html = await page.content();
     for (const app of HIDDEN_APPS) {
       expect(html, `${app.name} está oculta en apps.json y sigue en la página`).not.toContain(app.name);
-      expect(html, `${app.name}: su dominio sigue en la página`).not.toContain(new URL(app.url).hostname);
+      if (app.url) expect(html, `${app.name}: su dominio sigue en la página`).not.toContain(new URL(app.url).hostname);
     }
   });
 

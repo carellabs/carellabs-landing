@@ -22,7 +22,8 @@ for (const page of PAGES) {
         // Un contraste "incompleto" es un contraste que axe NO ha podido evaluar (p. ej. por un
         // degradado de fondo), no uno que pase. Si no se mira, un texto ilegible puede colarse.
         // Única excepción: los textos de la primera tarjeta del laboratorio (fondo de puntos),
-        // que se comprueban a mano en theme.spec.ts contra el peor fondo posible.
+        // que se comprueban a mano en theme.spec.ts contra el peor fondo posible. Cuentan también los
+        // elementos dentro de esos textos: el nombre de la tarjeta destacada es un enlace (`.name a`).
         const incompleteContrast = results.incomplete
           .filter((i) => i.id === "color-contrast")
           .flatMap((i) => i.nodes.map((n) => String(n.target[0])));
@@ -32,7 +33,7 @@ for (const page of PAGES) {
           const covered = await p
             .locator(selector)
             .evaluate(
-              (el, texts) => el.closest(".apps .app:first-child") !== null && el.matches(texts),
+              (el, texts) => el.closest(".apps .app:first-child") !== null && el.closest(texts) !== null,
               manuallyChecked,
             );
           if (!covered) unchecked.push(selector);

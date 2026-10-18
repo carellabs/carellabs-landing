@@ -46,7 +46,7 @@
   },
   "lab": {
     "title": "Laboratorio",
-    "intro": "Proyectos propios en los que aplico lo que aprendo. Cada uno vivirá en su propio subdominio cuando esté listo.",
+    "intro": "Proyectos propios en los que aplico lo que aprendo. Los que están en desarrollo se publicarán cuando estén listos.",
     "status": {
       "in-progress": "En desarrollo",
       "beta": "Beta",

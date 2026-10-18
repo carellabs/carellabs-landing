@@ -125,7 +125,7 @@ for (const lang of ["es", "en"] as const) {
 
   test(`${path}: the title carries the role and og:title repeats it`, async ({ page }) => {
     await page.goto(path);
-    const title = "Fabrizio Carella · Full Stack Developer · Carellabs";
+    const title = "Fabrizio Carella · Senior Full Stack Engineer · Carellabs";
     await expect(page).toHaveTitle(title);
     await expect(page.locator('meta[property="og:title"]')).toHaveAttribute("content", title);
   });
@@ -193,7 +193,7 @@ for (const lang of ["es", "en"] as const) {
     // Anclas que no dependen de los JSON de i18n: lo que de verdad se quiere publicar.
     expect(data["@id"]).toBe("https://carellabs.com/#person");
     expect(data.name).toBe("Fabrizio Carella");
-    expect(data.jobTitle).toBe("Full Stack Developer");
+    expect(data.jobTitle).toBe("Senior Full Stack Engineer");
     expect(data.sameAs).toEqual(["https://www.linkedin.com/in/fabriziocarella", "https://github.com/carellabs"]);
     expect(data.address).toEqual({ "@type": "PostalAddress", addressLocality: "Madrid", addressCountry: "ES" });
     expect(data.knowsAbout).toEqual([...HERO_FOCUS[lang].items]);

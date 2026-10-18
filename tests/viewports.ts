@@ -27,6 +27,6 @@ export const DOTTED_CARD_TEXTS = [".name", ".host", ".status", ".desc"] as const
 
 /** Etiqueta y elementos de la lista de especialidades del hero, por idioma. */
 export const HERO_FOCUS = {
-  es: { label: "Especialidades", items: ["Backend distribuido", "Integraciones ERP", "Offline-first"] },
-  en: { label: "Specialties", items: ["Distributed backend", "ERP integrations", "Offline-first"] },
+  es: { label: "Especialidades", items: ["Sistemas distribuidos", "Rendimiento y fiabilidad", "Offline-first"] },
+  en: { label: "Specialties", items: ["Distributed systems", "Performance & reliability", "Offline-first"] },
 } as const;

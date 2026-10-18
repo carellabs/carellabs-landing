@@ -24,13 +24,19 @@ const CANONICAL = { es: `${SITE}/`, en: `${SITE}/en/` } as const;
 /** Alternativas de idioma: el español es también el x-default. */
 const ALTERNATES = { es: `${SITE}/`, en: `${SITE}/en/`, "x-default": `${SITE}/` } as const;
 
+/** El titular (h1) de cada idioma, tal como está en src/i18n: así el test no fija el texto de marketing. */
+const headline = (lang: "es" | "en"): string =>
+  JSON.parse(readFileSync(`src/i18n/${lang}.json`, "utf8")).hero.headline;
+
 test("Spanish page is in Spanish, English page is in English", async ({ page }) => {
+  // Los dos titulares existen y son distintos: si no, el test no distinguiría un idioma del otro.
+  expect(headline("es")).not.toBe(headline("en"));
   await page.goto("/");
   await expect(page.locator("html")).toHaveAttribute("lang", "es");
-  await expect(page.locator("h1")).toContainText("Diseño");
+  await expect(page.locator("h1")).toHaveText(headline("es"));
   await page.goto("/en/");
   await expect(page.locator("html")).toHaveAttribute("lang", "en");
-  await expect(page.locator("h1")).toContainText("design");
+  await expect(page.locator("h1")).toHaveText(headline("en"));
 });
 
 // El selector está en la cabecera y en el pie: los dos tienen que llevar al otro idioma.

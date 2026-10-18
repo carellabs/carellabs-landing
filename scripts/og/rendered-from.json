@@ -1,14 +1,14 @@
 {
   "es": {
     "brand": "Carellabs",
-    "headline": "Diseño y evoluciono sistemas que conectan software, datos y operaciones en tiempo real.",
+    "headline": "Construyo software que sostiene operaciones reales, incluso cuando se cae la conexión.",
     "name": "Fabrizio Carella",
-    "role": "Full Stack Developer · Madrid"
+    "role": "Senior Full Stack Engineer · Madrid"
   },
   "en": {
     "brand": "Carellabs",
-    "headline": "I design and evolve systems that connect software, data and operations in real time.",
+    "headline": "I build software that keeps real-world operations running, even when the connection drops.",
     "name": "Fabrizio Carella",
-    "role": "Full Stack Developer · Madrid"
+    "role": "Senior Full Stack Engineer · Madrid"
   }
 }

@@ -1,5 +1,6 @@
 ---
 import type { Messages } from "../../i18n/types";
+import { noBreakBeforeDot } from "../../lib/typography";
 
 interface Props {
   t: Messages;
@@ -8,7 +9,7 @@ const { t } = Astro.props;
 ---
 
 <section class="hero" aria-labelledby="hero-title">
-  <p class="who"><strong>{t.hero.name}</strong><span>{t.hero.role}</span></p>
+  <p class="who"><strong>{t.hero.name}</strong><span>{noBreakBeforeDot(t.hero.role)}</span></p>
   <h1 id="hero-title">{t.hero.headline}</h1>
   <ul class="note" role="list" aria-label={t.hero.focusLabel}>
     {t.hero.note.map((item) => <li>{item}</li>)}

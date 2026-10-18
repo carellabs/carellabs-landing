@@ -5,6 +5,7 @@ export type Lang = "es" | "en";
 
 /** Lo que leen los tests de src/i18n: así no fijan cifras ni textos que cambian con el contenido. */
 export interface Messages {
+  meta: { jobTitle: string };
   experience: { items: { company: string; highlights?: string[] }[] };
   about: { stackTitle: string; stackGroups: { label: string; items: string[] }[] };
 }

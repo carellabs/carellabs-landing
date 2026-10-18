@@ -273,6 +273,9 @@ p { text-wrap: pretty; }
   /* Dos filas solo si hay justo otras dos apps que las llenen: con menos sobresale una fila vacía y con
      más, la destacada se alarga y deja un hueco vacío dentro de ella. */
   .app:first-child:nth-last-child(3) { grid-row: span 2; }
+  /* Con cuatro apps, la destacada ocupa la fila entera y las otras tres llenan la siguiente: a dos
+     columnas dejaría una celda vacía al final del mosaico. */
+  .app:first-child:nth-last-child(4) { grid-column: span 3; }
 }
 .app {
   display: flex;

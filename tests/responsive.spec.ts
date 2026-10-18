@@ -34,6 +34,28 @@ for (const page of PAGES) {
         );
       });
 
+      test("lab mosaic: the last row of cards is full (no empty cell at the end)", async ({ page: p }) => {
+        await p.goto(page.path);
+        const grid = await p.evaluate(() => {
+          const apps = document.querySelector<HTMLElement>("#lab .apps")!;
+          const cols = getComputedStyle(apps).gridTemplateColumns.split(" ").filter(Boolean).length;
+          const cards = Array.from(apps.querySelectorAll<HTMLElement>(":scope > .app")).map((card) => {
+            const r = card.getBoundingClientRect();
+            return { bottom: Math.round(r.bottom), right: Math.round(r.right) };
+          });
+          return { cols, right: Math.round(apps.getBoundingClientRect().right), cards };
+        });
+        test.skip(grid.cols < 2, "una columna: no hay mosaico");
+        // Control positivo: hay tarjetas que medir.
+        expect(grid.cards.length).toBe(VISIBLE_APPS.length);
+        const lastBottom = Math.max(...grid.cards.map((card) => card.bottom));
+        const lastRow = grid.cards.filter((card) => card.bottom === lastBottom);
+        expect(
+          Math.max(...lastRow.map((card) => card.right)),
+          "la última fila del mosaico deja una celda vacía a la derecha",
+        ).toBe(grid.right);
+      });
+
       test("no horizontal scroll", async ({ page: p }) => {
         await p.goto(page.path);
         const { scrollWidth, clientWidth } = await p.evaluate(() => ({

@@ -1,10 +1,10 @@
 {
   "meta": {
-    "title": "Fabrizio Carella · Full Stack Developer · Carellabs",
-    "description": "Full Stack Developer in Madrid. I design and evolve systems that connect software, data and operations in real time.",
-    "jobTitle": "Full Stack Developer",
+    "title": "Fabrizio Carella · Senior Full Stack Engineer · Carellabs",
+    "description": "Senior Full Stack Engineer in Madrid. I build software that keeps real-world operations running, even when the connection drops.",
+    "jobTitle": "Senior Full Stack Engineer",
     "locality": "Madrid",
-    "ogImageAlt": "Dark Carellabs card showing its logo, the site headline, the name Fabrizio Carella, the role Full Stack Developer in Madrid and the address carellabs.com."
+    "ogImageAlt": "Dark Carellabs card showing its logo, the site headline, the name Fabrizio Carella, the role Senior Full Stack Engineer in Madrid and the address carellabs.com."
   },
   "site": {
     "brand": "Carellabs",
@@ -24,18 +24,18 @@
   },
   "hero": {
     "name": "Fabrizio Carella",
-    "role": "Full Stack Developer · Madrid",
-    "headline": "I design and evolve systems that connect software, data and operations in real time.",
+    "role": "Senior Full Stack Engineer · Madrid",
+    "headline": "I build software that keeps real-world operations running, even when the connection drops.",
     "focusLabel": "Specialties",
-    "note": ["Distributed backend", "ERP integrations", "Offline-first"],
+    "note": ["Distributed systems", "Performance & reliability", "Offline-first"],
     "cta": "Get in touch",
     "ctaSecondary": "See projects"
   },
   "about": {
     "title": "Profile",
-    "p1": "I work on software that keeps real-world operations running: not just interfaces, but the platforms that let processes, data and integrations work reliably.",
-    "p2": "My focus is backend, real-time communication, distributed services and enterprise integrations. I take on frontend work when it is part of how the whole system behaves. I'm drawn to environments with real complexity: asynchronous processing, high data volumes, synchronisation between services, and software that has to operate under demanding conditions.",
-    "p3": "Before software I worked in technical and logistics roles, drawing plans and designing storage systems. That shaped how I approach engineering: I think in structures, processes and system behaviour rather than isolated features. How components interact, how they fail, how they scale and how they evolve.",
+    "p1": "Much of my work is about keeping the system running when conditions aren't ideal. I designed the plant-to-cloud sync of an industrial platform so sites can keep weighing and dispatching offline, with everything reconciling once the connection is back. I've spent a lot of time making critical processes fast and stable in production, and tracing each incident to its root cause rather than settling for a patch.",
+    "p2": "I work comfortably across backend, frontend and desktop, and I work daily with business stakeholders in English to turn operational processes into technical decisions. Before software I worked in logistics and technical drafting, which still shapes how I approach a system: how its parts interact, how they fail and how they evolve.",
+    "p3": "Outside work I'm building my own SaaS products, with the goal of bringing them to market. I handle the whole product, from the data model and business logic to payments and deployment. Almost everything is in TypeScript, tested from the start and, when the use case calls for it, built to keep working offline.",
     "stackTitle": "Usual stack",
     "stack": ["Node.js", "TypeScript", "React", "PostgreSQL", "Docker", "AWS", "Elasticsearch", "Vue.js"],
     "languagesTitle": "Languages",
@@ -61,30 +61,30 @@
       {
         "group": "software",
         "company": "AMURA IT",
-        "role": "Full Stack Developer",
+        "role": "Senior Full Stack Engineer",
         "period": "Nov 2023 - Present",
-        "summary": "Architecture and development of distributed backend services and APIs for real-time industrial operations: ERP integrations, asynchronous processing, sync between connected and offline environments, desktop tools integrating industrial hardware."
+        "summary": "Evolving a production order, dispatch and weighing platform for a multinational industrial group: Node.js microservices on OpenShift, Vue 3 frontends and an Electron desktop app that runs offline across plants in several European countries, integrated with SAP and AWS. Technical lead of the plant app."
       },
       {
         "group": "software",
         "company": "Global Alumni",
-        "role": "Full Stack Web Developer",
+        "role": "Full Stack Developer",
         "period": "Apr 2022 - Nov 2023",
-        "summary": "Development, deployment and maintenance of Node.js, React and Python applications on DynamoDB and MySQL. Docker containers deployed on AWS (ECR, ECS, CloudFront)."
+        "summary": "An online education provider's platform: payment gateways for course purchases, internal applications with Node.js, React and Python on DynamoDB and MySQL, and course maintenance in Canvas LMS. Containerized with Docker and deployed on AWS (ECR, ECS, CloudFront)."
       },
       {
         "group": "software",
         "company": "OcasionPlus",
-        "role": "Full Stack Web Developer",
+        "role": "Full Stack Developer",
         "period": "Feb - Apr 2022",
-        "summary": "Production web project for a vehicle marketplace: React, Redux, Next.js, Express and MongoDB."
+        "summary": "A used-car marketplace's production website with React, Next.js, Redux, Express and MongoDB, consuming internal and external REST APIs."
       },
       {
         "group": "software",
         "company": "The Bridge",
         "role": "Teacher Assistant · Full Stack",
         "period": "Nov 2021 - Feb 2022",
-        "summary": "Teaching support at the web development bootcamp where I trained."
+        "summary": "Supported students of the Full Stack bootcamp where I trained: answered questions and reviewed exercises and projects in JavaScript, Node.js and React."
       },
       {
         "group": "before",
@@ -109,7 +109,7 @@
   },
   "contact": {
     "title": "Contact",
-    "text": "If you have a system that needs to evolve, or a project where reliability matters, let's talk.",
+    "text": "Looking for someone to join your team, or want to talk about a product? Get in touch.",
     "email": "hola@carellabs.com",
     "links": [
       { "label": "LinkedIn", "href": "https://www.linkedin.com/in/fabriziocarella" },

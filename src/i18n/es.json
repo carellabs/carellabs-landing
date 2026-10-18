@@ -1,10 +1,10 @@
 {
   "meta": {
-    "title": "Fabrizio Carella · Full Stack Developer · Carellabs",
-    "description": "Full Stack Developer en Madrid. Diseño y evoluciono sistemas que conectan software, datos y operaciones en tiempo real.",
-    "jobTitle": "Full Stack Developer",
+    "title": "Fabrizio Carella · Senior Full Stack Engineer · Carellabs",
+    "description": "Senior Full Stack Engineer en Madrid. Construyo software que sostiene operaciones reales, incluso cuando se cae la conexión.",
+    "jobTitle": "Senior Full Stack Engineer",
     "locality": "Madrid",
-    "ogImageAlt": "Tarjeta oscura de Carellabs con su logotipo, el titular de la web, el nombre de Fabrizio Carella, su rol de Full Stack Developer en Madrid y la dirección carellabs.com."
+    "ogImageAlt": "Tarjeta oscura de Carellabs con su logotipo, el titular de la web, el nombre de Fabrizio Carella, su rol de Senior Full Stack Engineer en Madrid y la dirección carellabs.com."
   },
   "site": {
     "brand": "Carellabs",
@@ -24,18 +24,18 @@
   },
   "hero": {
     "name": "Fabrizio Carella",
-    "role": "Full Stack Developer · Madrid",
-    "headline": "Diseño y evoluciono sistemas que conectan software, datos y operaciones en tiempo real.",
+    "role": "Senior Full Stack Engineer · Madrid",
+    "headline": "Construyo software que sostiene operaciones reales, incluso cuando se cae la conexión.",
     "focusLabel": "Especialidades",
-    "note": ["Backend distribuido", "Integraciones ERP", "Offline-first"],
+    "note": ["Sistemas distribuidos", "Rendimiento y fiabilidad", "Offline-first"],
     "cta": "Escríbeme",
     "ctaSecondary": "Ver proyectos"
   },
   "about": {
     "title": "Perfil",
-    "p1": "Trabajo en sistemas de software que sostienen operaciones del mundo real: no solo interfaces, sino las plataformas que permiten que procesos, datos e integraciones funcionen de forma fiable.",
-    "p2": "Mi experiencia se centra en backend, comunicación en tiempo real, servicios distribuidos e integraciones empresariales. Participo en frontend cuando forma parte del comportamiento global del sistema. Me interesan los entornos con complejidad real: procesamiento asíncrono, alto volumen de datos, sincronización entre servicios y software que debe operar bajo condiciones exigentes.",
-    "p3": "Antes de dedicarme al software trabajé en entornos técnicos y logísticos, dibujando planos y diseñando sistemas de almacenaje. Eso marcó mi forma de abordar la ingeniería: pienso en estructuras, procesos y comportamiento de los sistemas, no en funcionalidades aisladas. Cómo interactúan los componentes, cómo fallan, cómo escalan y cómo evolucionan.",
+    "p1": "Gran parte de mi trabajo consiste en que el sistema aguante cuando las condiciones no son las ideales. Diseñé la sincronización entre planta y nube de una plataforma industrial para que se pueda seguir pesando y despachando sin conexión, y para que todo cuadre cuando vuelve. He dedicado mucho tiempo a que los procesos críticos sean rápidos y estables en producción, y a entender cada incidencia hasta su causa raíz en lugar de quedarme en el parche.",
+    "p2": "Me muevo con soltura entre backend, frontend y escritorio, y trabajo a diario con negocio, en inglés, para convertir procesos operativos en decisiones técnicas. Antes del software trabajé en logística y oficina técnica, y eso sigue marcando cómo abordo un sistema: cómo interactúan sus piezas, cómo fallan y cómo evolucionan.",
+    "p3": "Fuera del trabajo estoy montando mis propios productos SaaS, con la intención de lanzarlos al mercado. Me ocupo de todo el producto, desde el modelo de datos y la lógica de negocio hasta los pagos y el despliegue. Casi todo en TypeScript, con tests desde el principio y, cuando el caso lo pide, aplicaciones que siguen funcionando sin conexión.",
     "stackTitle": "Stack habitual",
     "stack": ["Node.js", "TypeScript", "React", "PostgreSQL", "Docker", "AWS", "Elasticsearch", "Vue.js"],
     "languagesTitle": "Idiomas",
@@ -61,30 +61,30 @@
       {
         "group": "software",
         "company": "AMURA IT",
-        "role": "Full Stack Developer",
+        "role": "Senior Full Stack Engineer",
         "period": "Nov 2023 - Actualidad",
-        "summary": "Arquitectura y desarrollo de servicios backend distribuidos y APIs para operaciones industriales en tiempo real: integraciones ERP, procesamiento asíncrono, sincronización entre entornos conectados y offline, herramientas de escritorio con integración de hardware industrial."
+        "summary": "Evolución de una plataforma en producción de pedidos, despacho y pesaje para un grupo industrial multinacional: microservicios Node.js en OpenShift, frontends en Vue 3 y una app de escritorio Electron que funciona sin conexión en plantas de varios países europeos, integrada con SAP y AWS. Lidero técnicamente la app de planta."
       },
       {
         "group": "software",
         "company": "Global Alumni",
-        "role": "Full Stack Web Developer",
+        "role": "Full Stack Developer",
         "period": "Abr 2022 - Nov 2023",
-        "summary": "Desarrollo, despliegue y mantenimiento de aplicaciones Node.js, React y Python sobre DynamoDB y MySQL. Contenedores con Docker y despliegue en AWS (ECR, ECS, CloudFront)."
+        "summary": "Plataforma de una escuela de formación online: pasarelas de pago para la compra de cursos, aplicaciones internas con Node.js, React y Python sobre DynamoDB y MySQL, y mantenimiento de los cursos en Canvas LMS. Contenedores con Docker y despliegue en AWS (ECR, ECS, CloudFront)."
       },
       {
         "group": "software",
         "company": "OcasionPlus",
-        "role": "Full Stack Web Developer",
+        "role": "Full Stack Developer",
         "period": "Feb - Abr 2022",
-        "summary": "Proyecto web en producción para compraventa de vehículos: React, Redux, Next.js, Express y MongoDB."
+        "summary": "Web en producción de compraventa de vehículos con React, Next.js, Redux, Express y MongoDB, consumiendo APIs REST internas y externas."
       },
       {
         "group": "software",
         "company": "The Bridge",
         "role": "Teacher Assistant · Full Stack",
         "period": "Nov 2021 - Feb 2022",
-        "summary": "Apoyo docente en el bootcamp de desarrollo web donde me formé."
+        "summary": "Apoyo a los alumnos del bootcamp Full Stack en el que me formé: resolución de dudas y revisión de ejercicios y proyectos en JavaScript, Node.js y React."
       },
       {
         "group": "before",
@@ -109,7 +109,7 @@
   },
   "contact": {
     "title": "Contacto",
-    "text": "Si tienes un sistema que necesita evolucionar, o un proyecto donde la fiabilidad importa, hablemos.",
+    "text": "¿Buscas a alguien para tu equipo o quieres hablar de un producto? Escríbeme.",
     "email": "hola@carellabs.com",
     "links": [
       { "label": "LinkedIn", "href": "https://www.linkedin.com/in/fabriziocarella" },

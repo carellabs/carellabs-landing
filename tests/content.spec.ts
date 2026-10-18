@@ -3,6 +3,7 @@ import { test, expect } from "@playwright/test";
 import { HERO_FOCUS, PAGES } from "./viewports";
 import { PLACEHOLDERS } from "./placeholders";
 import { APPS, HIDDEN_APPS, VISIBLE_APPS } from "./apps";
+import { messagesOf } from "./messages";
 
 test("apps.json: `hidden`, when present, is a boolean", () => {
   for (const app of APPS) {
@@ -195,6 +196,33 @@ for (const pg of PAGES) {
     const current = page.locator('#trayectoria [data-group="software"] .job.now');
     await expect(current).toHaveCount(1);
     await expect(current.locator(".company")).toHaveText("AMURA IT");
+  });
+
+  test(`${pg.path}: only the jobs with highlights in src/i18n show a list of achievements`, async ({ page }) => {
+    await page.goto(pg.path);
+    const all = messagesOf(pg.lang).experience.items;
+    const withList = all.filter((job) => job.highlights !== undefined);
+    const withoutList = all.filter((job) => job.highlights === undefined);
+    // Controles positivos: hay puestos con logros y sin ellos, y los de i18n coinciden con los pintados.
+    expect(withList.length, "ningún puesto tiene `highlights` en i18n").toBeGreaterThan(0);
+    expect(withoutList.length, "todos los puestos tienen `highlights` en i18n").toBeGreaterThan(0);
+    await expect(page.locator("#trayectoria .job")).toHaveCount(all.length);
+
+    const jobBox = (company: string) =>
+      page.locator("#trayectoria .job").filter({ has: page.getByText(company, { exact: true }) });
+
+    for (const job of withList) {
+      const list = jobBox(job.company).locator("ul");
+      await expect(list, `${job.company}: debe llevar una lista de logros`).toHaveCount(1);
+      // El recuento y el texto de cada logro salen de i18n: sin cifras fijas en el test.
+      await expect(list.locator("li")).toHaveText(job.highlights!);
+    }
+    for (const job of withoutList) {
+      await expect(jobBox(job.company), `${job.company}: no se encuentra su puesto`).toHaveCount(1);
+      await expect(jobBox(job.company).locator("ul, ol"), `${job.company}: no lleva logros`).toHaveCount(0);
+    }
+    // Y no hay ninguna lista de más en toda la trayectoria.
+    await expect(page.locator("#trayectoria .job ul")).toHaveCount(withList.length);
   });
 
   test(`${pg.path}: no em or en dashes in the visible text`, async ({ page }) => {

@@ -69,8 +69,12 @@ for (const page of PAGES) {
 
       test("text is readable: line length and font size", async ({ page: p }) => {
         await p.goto(page.path);
+        // Control positivo: los logros de la trayectoria también entran en la medición.
+        await expect(p.locator(".highlights li").first()).toBeVisible();
         const stats = await p.evaluate(() => {
-          const paras = Array.from(document.querySelectorAll<HTMLElement>(".prose p, .desc, .summary, .text"));
+          const paras = Array.from(
+            document.querySelectorAll<HTMLElement>(".prose p, .desc, .summary, .text, .highlights li"),
+          );
           return paras.map((el) => {
             const cs = getComputedStyle(el);
             return { fontSize: parseFloat(cs.fontSize), width: el.getBoundingClientRect().width };

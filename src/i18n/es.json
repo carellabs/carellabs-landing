@@ -63,7 +63,13 @@
         "company": "AMURA IT",
         "role": "Senior Full Stack Engineer",
         "period": "Nov 2023 - Actualidad",
-        "summary": "Evolución de una plataforma en producción de pedidos, despacho y pesaje para un grupo industrial multinacional: microservicios Node.js en OpenShift, frontends en Vue 3 y una app de escritorio Electron que funciona sin conexión en plantas de varios países europeos, integrada con SAP y AWS. Lidero técnicamente la app de planta."
+        "summary": "Evolución de una plataforma en producción de pedidos, despacho y pesaje para un grupo industrial multinacional: microservicios Node.js en OpenShift, frontends en Vue 3 y una app de escritorio Electron que funciona sin conexión en plantas de varios países europeos, integrada con SAP y AWS.",
+        "highlights": [
+          "Lidero técnicamente la app de planta (Electron + Vue 3), de la que soy el principal contribuidor.",
+          "Diseñé la sincronización entre planta y nube: cada planta escribe primero en local y sigue trabajando sin conexión.",
+          "Reduje un 95\u00a0% el tiempo de creación de pedidos grandes y un 90\u00a0% las peticiones del dashboard tras un incidente de CPU en producción.",
+          "Monté el despliegue por fases de nuevas versiones a la flota de terminales de planta."
+        ]
       },
       {
         "group": "software",

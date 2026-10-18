@@ -17,6 +17,15 @@ function leafPaths(value: unknown, prefix = ""): string[] {
   return [prefix];
 }
 
+/** Las hojas de texto del JSON con su ruta (`a.b[0]`). */
+function leafTexts(value: unknown, prefix = ""): { path: string; text: string }[] {
+  if (Array.isArray(value)) return value.flatMap((v, i) => leafTexts(v, `${prefix}[${i}]`));
+  if (value !== null && typeof value === "object") {
+    return Object.entries(value).flatMap(([k, v]) => leafTexts(v, prefix ? `${prefix}.${k}` : k));
+  }
+  return typeof value === "string" ? [{ path: prefix, text: value }] : [];
+}
+
 /** Todos los .astro de una carpeta, de forma recursiva. */
 function astroFiles(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -58,6 +67,49 @@ test("es.json and en.json have exactly the same keys", () => {
   expect(es.length).toBeGreaterThan(50);
   expect(es.some((p) => p.includes("["))).toBe(true);
   expect(en).toEqual(es);
+});
+
+// `highlights` es opcional por puesto, pero si está tiene que ser una lista con algo dentro: una lista vacía
+// pintaría un <ul> sin elementos y un logro en blanco, una viñeta vacía.
+for (const lang of ["es", "en"] as const) {
+  test(`${lang}: each job's highlights, when present, are a non-empty list of non-blank texts`, () => {
+    const { items } = (messages(lang) as { experience: { items: Record<string, unknown>[] } }).experience;
+    // Control positivo: se han leído puestos y al menos uno lleva `highlights`.
+    expect(items.length).toBeGreaterThan(3);
+    expect(items.some((job) => "highlights" in job)).toBe(true);
+
+    for (const job of items) {
+      if (!("highlights" in job)) continue;
+      const highlights = job.highlights;
+      expect(Array.isArray(highlights), `${String(job.company)}: highlights debe ser una lista`).toBe(true);
+      expect((highlights as unknown[]).length, `${String(job.company)}: highlights vacío`).toBeGreaterThan(0);
+      for (const text of highlights as unknown[]) {
+        expect(typeof text === "string" && text.trim().length > 0, `${String(job.company)}: logro en blanco`).toBe(true);
+      }
+    }
+  });
+}
+
+// Un porcentaje no se parte entre dos líneas: en español, el espacio entre la cifra y «%» es un espacio de
+// no separación (U+00A0); en inglés, el «%» va pegado a la cifra.
+test("es: a percentage keeps its number and % together with a no-break space", () => {
+  const texts = leafTexts(messages("es"));
+  // Control positivo: hay porcentajes escritos con el espacio de no separación.
+  expect(texts.filter(({ text }) => /\d\xA0%/.test(text)).length).toBeGreaterThan(0);
+  expect(
+    texts.filter(({ text }) => /\d[ \t]%/.test(text)).map(({ path }) => path),
+    "porcentaje con espacio normal: usa U+00A0 entre la cifra y %",
+  ).toEqual([]);
+});
+
+test("en: a percentage is written without a space between the number and %", () => {
+  const texts = leafTexts(messages("en"));
+  // Control positivo: hay porcentajes escritos así.
+  expect(texts.filter(({ text }) => /\d%/.test(text)).length).toBeGreaterThan(0);
+  expect(
+    texts.filter(({ text }) => /\d\s%/.test(text)).map(({ path }) => path),
+    "en inglés el % va pegado a la cifra",
+  ).toEqual([]);
 });
 
 // El rol y la ciudad están escritos una vez (`meta.jobTitle`, `meta.locality`, que usan los datos

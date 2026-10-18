@@ -63,7 +63,13 @@
         "company": "AMURA IT",
         "role": "Senior Full Stack Engineer",
         "period": "Nov 2023 - Present",
-        "summary": "Evolving a production order, dispatch and weighing platform for a multinational industrial group: Node.js microservices on OpenShift, Vue 3 frontends and an Electron desktop app that runs offline across plants in several European countries, integrated with SAP and AWS. Technical lead of the plant app."
+        "summary": "Evolving a production order, dispatch and weighing platform for a multinational industrial group: Node.js microservices on OpenShift, Vue 3 frontends and an Electron desktop app that runs offline across plants in several European countries, integrated with SAP and AWS.",
+        "highlights": [
+          "Technical lead and main contributor on the plant app (Electron + Vue 3).",
+          "Designed the plant-to-cloud sync: each plant writes locally first and keeps working when the connection drops.",
+          "Cut large-order creation time by 95% and dashboard requests by 90% after a production CPU incident.",
+          "Set up phased release rollouts to the plant terminal fleet."
+        ]
       },
       {
         "group": "software",

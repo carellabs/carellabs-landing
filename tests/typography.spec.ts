@@ -22,14 +22,19 @@ test("noBreakBeforeDot glues the dot to the word before it, so a line can only b
   expect(noBreakBeforeDot(once)).toBe(once);
 });
 
-test.describe("hero role at 320px", () => {
-  test.use({ viewport: { width: 320, height: 568 } });
+// Dónde se parte el rol depende de cómo mida la fuente cada sistema (en Linux cabe en una línea a 320 px
+// y en Windows no), así que no se confía en un ancho de pantalla concreto: se estrecha la caja del rol
+// de 60 a 400 px, lo que recorre todos sus puntos de corte en cualquier sistema. El estilo se cambia por
+// CSSOM, que la CSP de la web no bloquea (solo bloquea estilos en línea escritos en el HTML).
+test.describe("hero role", () => {
+  // Pantalla ancha: así la caja del rol solo la limita el `max-width` del recorrido, no la pantalla.
+  test.use({ viewport: { width: 1280, height: 800 } });
 
   for (const pg of PAGES) {
-    test(`${pg.path}: the «·» stays on the line where the job title ends`, async ({ page }) => {
+    test(`${pg.path}: at any width, the «·» stays on the line where the job title ends`, async ({ page }) => {
       await page.goto(pg.path);
       const { jobTitle } = messagesOf(pg.lang).meta;
-      const measured = await page.locator(".hero .who span").evaluate((span, title) => {
+      const sweep = await page.locator(".hero .who span").evaluate((span, title) => {
         const node = span.firstChild;
         if (!(node instanceof Text) || span.childNodes.length !== 1) throw new Error("el rol no es un único texto");
         const text = node.data;
@@ -41,56 +46,33 @@ test.describe("hero role at 320px", () => {
         };
         const titleEnd = text.indexOf(title) + title.length;
         const dot = text.indexOf("·");
-        return {
-          text,
-          lines: rects(0, text.length).length,
-          titleEndTop: rects(titleEnd - 1, titleEnd)[0]?.top,
-          dotTop: rects(dot, dot + 1)[0]?.top,
-        };
+        const results: { width: number; lines: number; dotTop?: number; titleEndTop?: number; dotLeft?: number; firstLeft?: number }[] = [];
+        for (let width = 60; width <= 400; width += 4) {
+          span.style.maxWidth = `${width}px`;
+          results.push({
+            width,
+            lines: new Set(rects(0, text.length).map((r) => Math.round(r.top))).size,
+            dotTop: rects(dot, dot + 1)[0]?.top,
+            titleEndTop: rects(titleEnd - 1, titleEnd)[0]?.top,
+            dotLeft: rects(dot, dot + 1)[0]?.left,
+            firstLeft: rects(0, 1)[0]?.left,
+          });
+        }
+        span.style.maxWidth = "";
+        return { text, results };
       }, jobTitle);
 
-      // Controles positivos: se ha medido de verdad (el texto lleva el rol y el punto), y a 320 px el rol
-      // se parte en dos líneas, que es cuando el punto podría quedar suelto.
-      expect(measured.text).toContain(jobTitle);
-      expect(measured.dotTop, "no se ha podido medir el «·»").toBeDefined();
-      expect(measured.lines, "a 320 px el rol deja de partirse: el test ya no comprueba nada").toBeGreaterThan(1);
+      // Controles positivos: se ha medido el rol de verdad, y el recorrido incluye anchos en los que se
+      // parte y anchos en los que cabe entero (si no, no estaría pasando por el punto de corte).
+      expect(sweep.text).toContain(jobTitle);
+      expect(sweep.results.every((r) => r.dotTop !== undefined), "no se ha podido medir el «·»").toBe(true);
+      expect(sweep.results.some((r) => r.lines > 1), "el rol no se parte en ningún ancho").toBe(true);
+      expect(sweep.results.some((r) => r.lines === 1), "el rol no cabe entero en ningún ancho").toBe(true);
 
-      expect(
-        Math.abs(measured.dotTop! - measured.titleEndTop!),
-        `el «·» empieza una línea: está a ${measured.dotTop} y el final del cargo a ${measured.titleEndTop}`,
-      ).toBeLessThan(1);
-    });
-
-    // El punto no empieza línea en ningún ancho de móvil, no solo a 320 px: se recorre de 320 a 420 px.
-    test(`${pg.path}: the «·» is never the first character of a line between 320 and 420px`, async ({ page }) => {
-      await page.goto(pg.path);
-      const widths = Array.from({ length: 26 }, (_, i) => 320 + i * 4);
-      const wrappedAt: number[] = [];
-      const atLineStart: number[] = [];
-      for (const width of widths) {
-        await page.setViewportSize({ width, height: 568 });
-        const m = await page.locator(".hero .who span").evaluate((span) => {
-          const node = span.firstChild as Text;
-          const rects = (from: number, to: number) => {
-            const range = document.createRange();
-            range.setStart(node, from);
-            range.setEnd(node, to);
-            return Array.from(range.getClientRects());
-          };
-          const dot = node.data.indexOf("·");
-          return {
-            lines: rects(0, node.data.length).length,
-            firstLeft: rects(0, 1)[0].left,
-            dotLeft: rects(dot, dot + 1)[0].left,
-          };
-        });
-        if (m.lines > 1) wrappedAt.push(width);
-        // Empieza línea cuando está a la altura del margen izquierdo del texto.
-        if (Math.abs(m.dotLeft - m.firstLeft) < 1) atLineStart.push(width);
-      }
-      // Control positivo: a 320 px el rol se parte (si no, el recorrido no comprobaría nada).
-      expect(wrappedAt, "el rol no se parte en ningún ancho: el test no comprueba nada").toContain(320);
-      expect(atLineStart, "anchos (px) en los que el «·» empieza una línea").toEqual([]);
+      const dotOnAnotherLine = sweep.results.filter((r) => Math.abs(r.dotTop! - r.titleEndTop!) >= 1).map((r) => r.width);
+      expect(dotOnAnotherLine, "anchos (px) en los que el «·» no está en la línea donde acaba el cargo").toEqual([]);
+      const dotStartsLine = sweep.results.filter((r) => Math.abs(r.dotLeft! - r.firstLeft!) < 1).map((r) => r.width);
+      expect(dotStartsLine, "anchos (px) en los que el «·» empieza una línea").toEqual([]);
     });
   }
 });

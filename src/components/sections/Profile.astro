@@ -19,7 +19,16 @@ const { t } = Astro.props;
       <div>
         <dt>{t.about.stackTitle}</dt>
         <dd>
-          <ul class="tokens" role="list">{t.about.stack.map((s) => <li>{s}</li>)}</ul>
+          {
+            t.about.stackGroups.map((group, i) => (
+              <div class="stack-group">
+                <p class="stack-label" id={`stack-group-${i}`}>{group.label}</p>
+                <ul class="tokens" role="list" aria-labelledby={`stack-group-${i}`}>
+                  {group.items.map((s) => <li>{s}</li>)}
+                </ul>
+              </div>
+            ))
+          }
         </dd>
       </div>
       <div>

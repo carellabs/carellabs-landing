@@ -96,6 +96,34 @@ for (const where of [".nav", ".foot"]) {
       await expect(link).toHaveAttribute("hreflang", lang);
     }
   });
+
+  // WCAG 2.5.3 (Label in Name): lo que se ve es lo que se anuncia. Si el enlace enseñara «EN» y su
+  // `aria-label` dijera «English», el nombre accesible no contendría el texto visible (axe:
+  // `label-content-name-mismatch`). Por eso el texto visible es el nombre del idioma de destino, tal
+  // como está en i18n, y el nombre accesible sale de ese texto: ningún `aria-label` que lo sustituya.
+  // No basta con `includes` sin distinguir mayúsculas: «english» contiene «en» y no detectaría el fallo.
+  test(`language switch in ${where} shows the target language name and its accessible name is exactly that text`, async ({ page }) => {
+    for (const { path, lang } of PAGES) {
+      const { switchToName } = messagesOf(lang).site;
+      await page.goto(path);
+      const link = page.locator(`${where} a[hreflang]`);
+      // Control positivo: hay un único selector en ese bloque, y su texto es un nombre de idioma, no un
+      // código de dos letras como «EN».
+      await expect(link, `${path}: debe haber un solo selector de idioma en ${where}`).toHaveCount(1);
+      expect(switchToName.length, "i18n: switchToName parece un código de idioma, no su nombre").toBeGreaterThan(2);
+
+      const visible = (await link.innerText()).trim();
+      expect(visible, `${path}: el texto visible de ${where} debe ser el nombre del idioma de destino`).toBe(switchToName);
+      await expect(
+        page.locator(where).getByRole("link", { name: visible, exact: true }),
+        `${path}: el nombre accesible de ${where} debe ser exactamente su texto visible «${visible}»`,
+      ).toHaveCount(1);
+      expect(
+        await link.evaluate((el) => el.hasAttribute("aria-label")),
+        `${path}: el selector de ${where} no debe llevar aria-label (sustituiría al texto visible)`,
+      ).toBe(false);
+    }
+  });
 }
 
 for (const pg of PAGES) {

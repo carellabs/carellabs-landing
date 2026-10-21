@@ -9,7 +9,6 @@
   "site": {
     "brand": "Carellabs",
     "switchToName": "Español",
-    "switchTo": "ES",
     "switchHref": "/"
   },
   "a11y": {

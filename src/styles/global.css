@@ -256,14 +256,26 @@ p { text-wrap: pretty; }
   color: var(--ink-3);
 }
 .spec .langs li { color: var(--ink-2); }
+/* Cada grupo del stack lleva su etiqueta (nombre accesible de su lista) y se separa del siguiente. */
+.stack-group + .stack-group { margin-top: 1rem; }
+.stack-label {
+  margin-bottom: 0.4rem;
+  font-family: var(--display);
+  font-size: 0.75rem;
+  color: var(--ink-2);
+}
 
 /* ---------- Laboratorio: mosaico de módulos ---------- */
 .apps { display: grid; gap: 1rem; margin-top: 2rem; }
 @media (min-width: 56em) {
   .apps { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .app:first-child { grid-column: span 2; }
-  /* Dos filas solo si hay al menos otras dos apps que las llenen (si no, sobresale una fila vacía). */
-  .app:first-child:nth-last-child(n + 3) { grid-row: span 2; }
+  /* Dos filas solo si hay justo otras dos apps que las llenen: con menos sobresale una fila vacía y con
+     más, la destacada se alarga y deja un hueco vacío dentro de ella. */
+  .app:first-child:nth-last-child(3) { grid-row: span 2; }
+  /* Con cuatro apps, la destacada ocupa la fila entera y las otras tres llenan la siguiente: a dos
+     columnas dejaría una celda vacía al final del mosaico. */
+  .app:first-child:nth-last-child(4) { grid-column: span 3; }
 }
 .app {
   display: flex;
@@ -359,6 +371,24 @@ p { text-wrap: pretty; }
 .job .role { margin-top: 0.25rem; font-weight: 600; font-size: 1.125rem; }
 .job .company { color: var(--ink-2); }
 .job .summary { max-width: var(--measure); margin-top: 0.5rem; color: var(--ink-2); }
+/* Logros de un puesto: viñeta cuadrada como el nodo del raíl, pero pequeña y apagada. La viñeta es
+   decoración (no lleva texto), así que no se anuncia; la lista conserva `role="list"` en el HTML. */
+.job .highlights { display: grid; gap: 0.5rem; max-width: var(--measure); margin-top: 0.75rem; }
+.job .highlights li {
+  position: relative;
+  padding-left: 1.25rem;
+  color: var(--ink-2);
+}
+.job .highlights li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.65em;
+  width: 6px;
+  height: 6px;
+  border-radius: 1px;
+  background: var(--ink-3);
+}
 [data-group="before"] .rail { gap: 1.5rem; }
 [data-group="before"] .job .role { font-size: 1rem; }
 [data-group="before"] .job .summary { font-size: 0.9375rem; }

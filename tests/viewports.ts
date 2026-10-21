@@ -19,7 +19,7 @@ export const SCHEMES = [
 ] as const;
 
 /**
- * Textos de la primera tarjeta del laboratorio (FinApp), que tiene un fondo de puntos
+ * Textos de la primera tarjeta del laboratorio (la destacada), que tiene un fondo de puntos
  * (`radial-gradient`). axe no puede resolver ese fondo y marca estos textos como
  * "incomplete"; `theme.spec.ts` los comprueba a mano contra el peor fondo posible.
  */

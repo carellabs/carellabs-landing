@@ -1,6 +1,7 @@
 ---
 import apps from "../../data/apps.json";
 import type { Lang, Messages } from "../../i18n/types";
+import { hostLine } from "../../lib/host";
 
 interface Props {
   lang: Lang;
@@ -20,16 +21,17 @@ const visibleApps = apps.filter((app) => !("hidden" in app && app.hidden === tru
   <ul class="apps" role="list">
     {
       visibleApps.map((app) => {
-        // Solo las apps en beta o disponibles enlazan; el resto se muestra sin enlace.
-        const linked = app.status === "live" || app.status === "beta";
+        // Solo las apps en beta o disponibles enlazan y enseñan su dirección; el resto se muestra sin enlace
+        // y sin dirección (aún no existe), y puede no tener `url`.
+        const href = app.status === "live" || app.status === "beta" ? app.url : undefined;
         return (
           <li class="app">
             <div class="app-head">
               <div>
                 <h3 class="name">
-                  {linked ? <a href={app.url} rel="noopener">{app.name}</a> : app.name}
+                  {href ? <a href={href} rel="noopener">{app.name}</a> : app.name}
                 </h3>
-                <p class="host">{new URL(app.url).hostname}</p>
+                {href && <p class="host">{hostLine(href)}</p>}
               </div>
               <span class="status" data-status={app.status}>
                 {t.lab.status[app.status as Status]}

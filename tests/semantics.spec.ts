@@ -1,6 +1,7 @@
 import { test, expect, type Locator } from "@playwright/test";
 import { HERO_FOCUS, PAGES } from "./viewports";
 import { VISIBLE_APPS } from "./apps";
+import { messagesOf } from "./messages";
 
 /** Estilo y grosor del contorno de foco que calcula el navegador. */
 const outlineOf = (el: Locator) =>
@@ -53,8 +54,13 @@ for (const pg of PAGES) {
     );
     // Control positivo: hay listas (apps, tokens, raíl, especialidades, idiomas, formación...) y
     // todas pierden el marcador, que es lo que hace que Safari/VoiceOver las deje de anunciar.
-    // 6 listas fijas, la del laboratorio y una de stack por cada app visible.
-    expect(lists.length).toBeGreaterThanOrEqual(6 + 1 + VISIBLE_APPS.length);
+    // 5 listas fijas (especialidades, idiomas, dos raíles y formación), una por grupo del stack del perfil,
+    // la del laboratorio, una de stack por cada app visible y una de logros por cada puesto que los tenga.
+    const { about, experience } = messagesOf(pg.lang);
+    const withHighlights = experience.items.filter((job) => job.highlights !== undefined);
+    expect(lists.length).toBeGreaterThanOrEqual(
+      5 + about.stackGroups.length + 1 + VISIBLE_APPS.length + withHighlights.length,
+    );
     expect(lists.filter((l) => l.marker !== "none")).toEqual([]);
     expect(lists.filter((l) => l.role !== "list").map((l) => l.name)).toEqual([]);
   });

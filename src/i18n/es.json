@@ -37,13 +37,16 @@
     "p2": "Me muevo con soltura entre backend, frontend y escritorio, y trabajo a diario con negocio, en inglés, para convertir procesos operativos en decisiones técnicas. Antes del software trabajé en logística y oficina técnica, y eso sigue marcando cómo abordo un sistema: cómo interactúan sus piezas, cómo fallan y cómo evolucionan.",
     "p3": "Fuera del trabajo estoy montando mis propios productos SaaS, con la intención de lanzarlos al mercado. Me ocupo de todo el producto, desde el modelo de datos y la lógica de negocio hasta los pagos y el despliegue. Casi todo en TypeScript, con tests desde el principio y, cuando el caso lo pide, aplicaciones que siguen funcionando sin conexión.",
     "stackTitle": "Stack habitual",
-    "stack": ["Node.js", "TypeScript", "React", "PostgreSQL", "Docker", "AWS", "Elasticsearch", "Vue.js"],
+    "stackGroups": [
+      { "label": "En el trabajo", "items": ["Node.js", "Vue 3", "Electron", "Elasticsearch", "MySQL", "AWS", "Docker", "OpenShift"] },
+      { "label": "En proyectos propios", "items": ["TypeScript", "React", "Fastify", "PostgreSQL", "Drizzle", "Playwright"] }
+    ],
     "languagesTitle": "Idiomas",
     "languages": ["Español (nativo)", "Inglés (profesional)", "Gallego (profesional)"]
   },
   "lab": {
     "title": "Laboratorio",
-    "intro": "Proyectos propios en los que aplico lo que aprendo. Cada uno vivirá en su propio subdominio cuando esté listo.",
+    "intro": "Proyectos propios en los que aplico lo que aprendo. Los que están en desarrollo se publicarán cuando estén listos.",
     "status": {
       "in-progress": "En desarrollo",
       "beta": "Beta",
@@ -63,7 +66,13 @@
         "company": "AMURA IT",
         "role": "Senior Full Stack Engineer",
         "period": "Nov 2023 - Actualidad",
-        "summary": "Evolución de una plataforma en producción de pedidos, despacho y pesaje para un grupo industrial multinacional: microservicios Node.js en OpenShift, frontends en Vue 3 y una app de escritorio Electron que funciona sin conexión en plantas de varios países europeos, integrada con SAP y AWS. Lidero técnicamente la app de planta."
+        "summary": "Evolución de una plataforma en producción de pedidos, despacho y pesaje para un grupo industrial multinacional: microservicios Node.js en OpenShift, frontends en Vue 3 y una app de escritorio Electron que funciona sin conexión en plantas de varios países europeos, integrada con SAP y AWS.",
+        "highlights": [
+          "Lidero técnicamente la app de planta (Electron + Vue 3), de la que soy el principal contribuidor.",
+          "Diseñé la sincronización entre planta y nube: cada planta escribe primero en local y sigue trabajando sin conexión.",
+          "Reduje un 95\u00a0% el tiempo de creación de pedidos grandes y un 90\u00a0% las peticiones del dashboard tras un incidente de CPU en producción.",
+          "Monté el despliegue por fases de nuevas versiones a la flota de terminales de planta."
+        ]
       },
       {
         "group": "software",

@@ -26,6 +26,11 @@ const items = t.experience.items;
                   <p class="role">{job.role}</p>
                   <p class="company">{job.company}</p>
                   <p class="summary">{job.summary}</p>
+                  {job.highlights && (
+                    <ul class="highlights" role="list">
+                      {job.highlights.map((highlight) => <li>{highlight}</li>)}
+                    </ul>
+                  )}
                 </li>
               ))}
           </ol>
